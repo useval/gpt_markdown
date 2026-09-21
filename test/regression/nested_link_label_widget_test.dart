@@ -47,7 +47,9 @@ Future<void> pump(
 /// placeholder that fails to paint on iOS.
 bool hasNestedPlaceholder(WidgetTester tester) {
   var placeholderCarrying = 0;
-  for (final rt in tester.widgetList<RichText>(find.byType(RichText))) {
+  for (final rt in tester.widgetList<RichText>(
+    find.byWidgetPredicate((w) => w is RichText),
+  )) {
     if (_containsWidgetSpan(rt.text)) {
       placeholderCarrying++;
     }
@@ -69,7 +71,9 @@ bool _containsWidgetSpan(InlineSpan span) {
 
 String allRichText(WidgetTester tester) {
   final buffer = StringBuffer();
-  for (final rt in tester.widgetList<RichText>(find.byType(RichText))) {
+  for (final rt in tester.widgetList<RichText>(
+    find.byWidgetPredicate((w) => w is RichText),
+  )) {
     buffer.write(rt.text.toPlainText(includePlaceholders: false));
   }
   return buffer.toString();

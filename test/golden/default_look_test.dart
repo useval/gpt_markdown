@@ -65,7 +65,15 @@ void main() {
   // be able to run the whole suite.
   // `testWidgets` takes a bool, so the reason lives here: goldens are
   // generated on Linux and only compared there.
-  final skipOffLinux = !Platform.isLinux;
+  //
+  // GPT_MARKDOWN_SKIP_GOLDENS opts out on a machine that is Linux but is not
+  // running the SDK the goldens were generated with. The beta-channel job in
+  // score.yml is the case that matters: it exists to surface new lints and
+  // deprecations early, and a wall of golden failures caused by engine
+  // rasterisation drift buries exactly the signal it was added to find.
+  final skipGoldens =
+      !Platform.isLinux ||
+      Platform.environment.containsKey('GPT_MARKDOWN_SKIP_GOLDENS');
 
   for (final entry in _cases.entries) {
     for (final brightness in Brightness.values) {
@@ -97,7 +105,7 @@ void main() {
           find.byType(MaterialApp),
           matchesGoldenFile('defaults/${entry.key}_${brightness.name}.png'),
         );
-      }, skip: skipOffLinux);
+      }, skip: skipGoldens);
     }
   }
 }

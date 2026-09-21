@@ -107,31 +107,34 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
 
     final result = await showDialog<Set<String>>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Labels'),
-          content: SizedBox(
-            width: 380,
-            child: SingleChildScrollView(
-              child: LabelPicker(
-                available: _labels,
-                selected: selected,
-                onChanged: (next) => setDialogState(() => selected = next),
-              ),
-            ),
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  title: const Text('Labels'),
+                  content: SizedBox(
+                    width: 380,
+                    child: SingleChildScrollView(
+                      child: LabelPicker(
+                        available: _labels,
+                        selected: selected,
+                        onChanged:
+                            (next) => setDialogState(() => selected = next),
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).pop(selected),
+                      child: const Text('Apply'),
+                    ),
+                  ],
+                ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(selected),
-              child: const Text('Apply'),
-            ),
-          ],
-        ),
-      ),
     );
     if (result == null) return;
     await _mutate(() => widget.api.setLabels(issue.number, result.toList()));
@@ -145,35 +148,36 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
 
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit issue'),
-        content: SizedBox(
-          width: 560,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: title,
-                  decoration: const InputDecoration(labelText: 'Title'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Edit issue'),
+            content: SizedBox(
+              width: 560,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: title,
+                      decoration: const InputDecoration(labelText: 'Title'),
+                    ),
+                    const SizedBox(height: 16),
+                    MarkdownEditor(controller: body, minLines: 6),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                MarkdownEditor(controller: body, minLines: 6),
-              ],
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Save'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
     );
     if (saved != true) return;
     await _mutate(
@@ -213,19 +217,20 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
           ),
         ],
       ),
-      body: _error != null
-          ? EmptyState(
-              icon: Icons.cloud_off,
-              title: 'Cannot load issue #${widget.number}',
-              body: '$_error',
-              action: FilledButton(
-                onPressed: _load,
-                child: const Text('Try again'),
-              ),
-            )
-          : issue == null
-          ? const Center(child: CircularProgressIndicator())
-          : _content(theme, issue),
+      body:
+          _error != null
+              ? EmptyState(
+                icon: Icons.cloud_off,
+                title: 'Cannot load issue #${widget.number}',
+                body: '$_error',
+                action: FilledButton(
+                  onPressed: _load,
+                  child: const Text('Try again'),
+                ),
+              )
+              : issue == null
+              ? const Center(child: CircularProgressIndicator())
+              : _content(theme, issue),
     );
   }
 
@@ -314,15 +319,16 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
           ),
         ],
       ),
-      child: issue.body.trim().isEmpty
-          ? Text(
-              'No description provided.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontStyle: FontStyle.italic,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            )
-          : GptMarkdown(issue.body),
+      child:
+          issue.body.trim().isEmpty
+              ? Text(
+                'No description provided.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+              : GptMarkdown(issue.body),
     );
   }
 
@@ -429,9 +435,10 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
           IconButton(
             tooltip: 'Delete comment',
             iconSize: 16,
-            onPressed: _busy
-                ? null
-                : () => _mutate(() => widget.api.deleteComment(entry.id)),
+            onPressed:
+                _busy
+                    ? null
+                    : () => _mutate(() => widget.api.deleteComment(entry.id)),
             icon: const Icon(Icons.delete_outline),
           ),
         ],
@@ -488,26 +495,22 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             OutlinedButton.icon(
-              onPressed: _busy
-                  ? null
-                  : () => _submitComment(alsoToggleState: true),
+              onPressed:
+                  _busy ? null : () => _submitComment(alsoToggleState: true),
               icon: Icon(
-                issue.isOpen
-                    ? Icons.check_circle_outline
-                    : Icons.error_outline,
+                issue.isOpen ? Icons.check_circle_outline : Icons.error_outline,
                 size: 18,
               ),
               label: Text(
                 _comment.text.trim().isEmpty
                     ? (issue.isOpen ? 'Close issue' : 'Reopen issue')
                     : (issue.isOpen
-                          ? 'Close with comment'
-                          : 'Reopen with comment'),
+                        ? 'Close with comment'
+                        : 'Reopen with comment'),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: issue.isOpen
-                    ? IssueColors.closed
-                    : IssueColors.open,
+                foregroundColor:
+                    issue.isOpen ? IssueColors.closed : IssueColors.open,
               ),
             ),
             const SizedBox(width: 12),
@@ -525,7 +528,11 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
     );
   }
 
-  Widget _card(ThemeData theme, {required Widget header, required Widget child}) {
+  Widget _card(
+    ThemeData theme, {
+    required Widget header,
+    required Widget child,
+  }) {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: theme.dividerColor),

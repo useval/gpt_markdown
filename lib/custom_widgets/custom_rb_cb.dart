@@ -1,3 +1,4 @@
+import 'markdown_text_scaling.dart';
 import 'package:flutter/material.dart';
 
 import '../styles/checkbox_style.dart';
@@ -15,42 +16,36 @@ Widget _sized(double? size, Widget child) {
 
 /// Wraps a marker and its label in the row layout both markers share.
 ///
-/// The marker is rendered inside a `WidgetSpan`, and a paragraph lays inline
-/// children out in scaled space — it hands them `maxWidth / scale` and
-/// multiplies the reported size back. A child that also scales its own text is
-/// counted twice, so the marker opts out, matching what `config.getRich` does
-/// for nested paragraphs.
+/// Nested rows let their enclosing paragraph scale the whole widget. Direct
+/// blocks inherit MediaQuery so both the marker and label grow with the text.
 Widget _markerRow({
   required TextDirection textDirection,
   required double spacing,
   required Widget marker,
   required Widget child,
+  required bool scalesItsOwnText,
 }) {
-  return MediaQuery.withNoTextScaling(
-    child: Directionality(
-      textDirection: textDirection,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        textBaseline: TextBaseline.alphabetic,
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        children: [
-          Text.rich(
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: Padding(
-                padding: EdgeInsetsDirectional.only(
-                  start: spacing,
-                  end: spacing,
-                ),
-                child: marker,
-              ),
+  final body = Directionality(
+    textDirection: textDirection,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      textBaseline: TextBaseline.alphabetic,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      children: [
+        Text.rich(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: EdgeInsetsDirectional.only(start: spacing, end: spacing),
+              child: marker,
             ),
           ),
-          Flexible(child: child),
-        ],
-      ),
+        ),
+        Flexible(child: child),
+      ],
     ),
   );
+  return MarkdownTextScaling.wrap(body, enabled: scalesItsOwnText);
 }
 
 /// A custom radio button widget that extends StatelessWidget.
@@ -63,7 +58,12 @@ class CustomRb extends StatelessWidget {
     required this.value,
     this.style = const CheckboxStyle(),
     this.onChanged,
+    this.scalesItsOwnText = false,
   });
+
+  /// Whether this block scales from MediaQuery rather than an enclosing
+  /// paragraph. Leave false when embedded in a WidgetSpan.
+  final bool scalesItsOwnText;
 
   /// The label beside the marker.
   final Widget child;
@@ -90,6 +90,7 @@ class CustomRb extends StatelessWidget {
     final changed = onChanged;
 
     return _markerRow(
+      scalesItsOwnText: scalesItsOwnText,
       textDirection: textDirection,
       spacing: spacing,
       marker: RadioGroup(
@@ -123,7 +124,12 @@ class CustomCb extends StatelessWidget {
     required this.value,
     this.style = const CheckboxStyle(),
     this.onChanged,
+    this.scalesItsOwnText = false,
   });
+
+  /// Whether this block scales from MediaQuery rather than an enclosing
+  /// paragraph. Leave false when embedded in a WidgetSpan.
+  final bool scalesItsOwnText;
 
   /// The label beside the box.
   final Widget child;
@@ -151,6 +157,7 @@ class CustomCb extends StatelessWidget {
     final changed = onChanged;
 
     return _markerRow(
+      scalesItsOwnText: scalesItsOwnText,
       textDirection: textDirection,
       spacing: spacing,
       marker: _sized(

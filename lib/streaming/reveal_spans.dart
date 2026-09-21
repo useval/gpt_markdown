@@ -13,9 +13,11 @@
 /// both pipelines.
 library;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../custom_widgets/inline_code.dart';
+import '../custom_widgets/inline_tap.dart';
 import 'reveal_effect.dart';
 
 /// Transforms a run of spans — the reveal, handed to a [RevealableSpan] so it
@@ -232,6 +234,7 @@ void _walk({
         effect: effect,
         progressFor: progressFor,
         color: color,
+        recognizer: span.recognizer,
       );
     }
     final children = span.children;
@@ -250,34 +253,56 @@ void _walk({
     if (pieces.isEmpty) {
       continue;
     }
-    // The original span's own style and recognizer are kept on the container
-    // and the pieces carry only the effect's delta, so a link in the tail is
-    // still a link and Flutter resolves `foreground` against `color` the way
-    // it always does. A code span keeps its tag: the chip is painted for
-    // `CodeTextSpan`s specifically, and rebuilding one as a plain `TextSpan`
-    // left its text bare until the whole segment settled.
-    out.add(
-      span is CodeTextSpan
-          ? CodeTextSpan.revealing(
-            children: pieces,
-            codeStyle: span.codeStyle,
-            style: span.style,
-            recognizer: span.recognizer,
-            mouseCursor: span.mouseCursor,
-            semanticsLabel: span.semanticsLabel,
-          )
-          : TextSpan(
-            children: pieces,
-            style: span.style,
-            recognizer: span.recognizer,
-            mouseCursor: span.mouseCursor,
-            onEnter: span.onEnter,
-            onExit: span.onExit,
-            semanticsLabel: span.semanticsLabel,
-            locale: span.locale,
-            spellOut: span.spellOut,
-          ),
-    );
+    // The original span's own style is kept on the container and the pieces
+    // carry only the effect's delta, so Flutter resolves `foreground` against
+    // `color` the way it always does. Two things travel further down:
+    //
+    // A recognizer is copied onto every emitted piece, not just left on the
+    // container. A recognizer on a span that has children and no `text` can
+    // never fire, so leaving it here alone would make an `InlinePattern`
+    // mention — or any recognizer-bearing span — untappable for the whole
+    // reveal and tappable only once the segment settled.
+    //
+    // A tagged span keeps its tag: inline code's chip and a link's tap run are
+    // both found by subclass, and rebuilding one as a plain `TextSpan` left it
+    // undecorated and untappable until the segment settled.
+    out.add(switch (span) {
+      CodeTextSpan() => CodeTextSpan.revealing(
+        children: pieces,
+        codeStyle: span.codeStyle,
+        style: span.style,
+        recognizer: span.recognizer,
+        mouseCursor: span.mouseCursor,
+        semanticsLabel: span.semanticsLabel,
+      ),
+      LinkTextSpan() => LinkTextSpan.wrapping(
+        children: pieces,
+        url: span.url,
+        linkStyle: span.linkStyle,
+        onTap: span.onTap,
+        hoverStyle: span.hoverStyle,
+        style: span.style,
+        mouseCursor: span.mouseCursor,
+      ),
+      TappableTextSpan() => TappableTextSpan.wrapping(
+        children: pieces,
+        onTap: span.onTap,
+        hoverStyle: span.hoverStyle,
+        style: span.style,
+        mouseCursor: span.mouseCursor,
+      ),
+      _ => TextSpan(
+        children: pieces,
+        style: span.style,
+        recognizer: span.recognizer,
+        mouseCursor: span.mouseCursor,
+        onEnter: span.onEnter,
+        onExit: span.onExit,
+        semanticsLabel: span.semanticsLabel,
+        locale: span.locale,
+        spellOut: span.spellOut,
+      ),
+    });
   }
 }
 
@@ -290,6 +315,7 @@ void _emitText({
   required GptMarkdownAnimation effect,
   required double Function(int index) progressFor,
   required Color color,
+  GestureRecognizer? recognizer,
 }) {
   final start = cursor.value;
   final end = start + text.length;
@@ -298,7 +324,7 @@ void _emitText({
   // Entirely settled: one span, whatever its length. This is the branch that
   // keeps a long reply cheap.
   if (end <= settledBelow) {
-    out.add(TextSpan(text: text));
+    out.add(TextSpan(text: text, recognizer: recognizer));
     cursor.lastWasSpace = _isSpace(text.codeUnitAt(text.length - 1));
     return;
   }
@@ -341,7 +367,12 @@ void _emitText({
   var plainFrom = i > start ? start : -1;
   void flushPlain(int until) {
     if (plainFrom >= 0) {
-      out.add(TextSpan(text: text.substring(plainFrom - start, until - start)));
+      out.add(
+        TextSpan(
+          text: text.substring(plainFrom - start, until - start),
+          recognizer: recognizer,
+        ),
+      );
       plainFrom = -1;
     }
   }
@@ -380,7 +411,11 @@ void _emitText({
     } else {
       flushPlain(i);
       out.add(
-        TextSpan(text: text.substring(i - start, next - start), style: delta),
+        TextSpan(
+          text: text.substring(i - start, next - start),
+          style: delta,
+          recognizer: recognizer,
+        ),
       );
     }
     i = next;

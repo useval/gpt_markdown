@@ -2,3 +2,16 @@ include: package:flutter_lints/flutter.yaml
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+
+# The nested apps are separate packages with their own dependencies, and each
+# is analysed in its own step by scripts/check.sh. Analysing them from here as
+# well resolves their imports against the wrong package config: on a machine
+# where they happen to have a `.dart_tool` it appears to work, and on a fresh
+# clone every `package:` import in them fails. That is why CI reported 61
+# errors in example_ai_chat that nobody saw locally.
+analyzer:
+  exclude:
+    - example/**
+    - example_ai_chat/**
+    - widgetbook/**
+    - build/**

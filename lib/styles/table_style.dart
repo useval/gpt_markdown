@@ -19,6 +19,7 @@ class TableStyle {
     this.headerBackground,
     this.headerTextStyle,
     this.rowStripeColor,
+    this.columnWidth,
   });
 
   /// Grid colour. Defaults to `ColorScheme.onSurface`.
@@ -39,6 +40,11 @@ class TableStyle {
   /// Header text style. Defaults to the body style.
   final TextStyle? headerTextStyle;
 
+  /// Optional width policy for every column. FixedColumnWidth skips content
+  /// measurement and is useful for large streaming tables. Null preserves
+  /// content-sized columns. Flex widths require a bounded table width.
+  final TableColumnWidth? columnWidth;
+
   /// Fill for alternating rows. Defaults to none.
   final Color? rowStripeColor;
 
@@ -55,6 +61,7 @@ class TableStyle {
       headerBackground: headerBackground ?? other.headerBackground,
       headerTextStyle: headerTextStyle ?? other.headerTextStyle,
       rowStripeColor: rowStripeColor ?? other.rowStripeColor,
+      columnWidth: columnWidth ?? other.columnWidth,
     );
   }
 
@@ -69,6 +76,7 @@ class TableStyle {
       headerBackground: headerBackground ?? scheme.surfaceContainerHighest,
       headerTextStyle: headerTextStyle,
       rowStripeColor: rowStripeColor,
+      columnWidth: columnWidth,
     );
   }
 
@@ -81,6 +89,7 @@ class TableStyle {
     Color? headerBackground,
     TextStyle? headerTextStyle,
     Color? rowStripeColor,
+    TableColumnWidth? columnWidth,
   }) {
     return TableStyle(
       borderColor: borderColor ?? this.borderColor,
@@ -90,6 +99,7 @@ class TableStyle {
       headerBackground: headerBackground ?? this.headerBackground,
       headerTextStyle: headerTextStyle ?? this.headerTextStyle,
       rowStripeColor: rowStripeColor ?? this.rowStripeColor,
+      columnWidth: columnWidth ?? this.columnWidth,
     );
   }
 
@@ -112,6 +122,7 @@ class TableStyle {
       headerBackground: Color.lerp(a.headerBackground, b.headerBackground, t),
       headerTextStyle: TextStyle.lerp(a.headerTextStyle, b.headerTextStyle, t),
       rowStripeColor: Color.lerp(a.rowStripeColor, b.rowStripeColor, t),
+      columnWidth: t < 0.5 ? a.columnWidth : b.columnWidth,
     );
   }
 
@@ -127,7 +138,8 @@ class TableStyle {
         other.cellPadding == cellPadding &&
         other.headerBackground == headerBackground &&
         other.headerTextStyle == headerTextStyle &&
-        other.rowStripeColor == rowStripeColor;
+        other.rowStripeColor == rowStripeColor &&
+        other.columnWidth == columnWidth;
   }
 
   @override
@@ -139,5 +151,6 @@ class TableStyle {
     headerBackground,
     headerTextStyle,
     rowStripeColor,
+    columnWidth,
   );
 }

@@ -152,7 +152,6 @@ class _StreamingPageState extends State<StreamingPage> {
                     // incremental one, and switching between them re-wraps the
                     // text and adds a line after a fenced block — a parser
                     // difference wearing an animation's clothes.
-                    incremental: true,
                     animation: _animation,
                     blockAnimation: _blockAnimation,
                     isStreaming: _running,

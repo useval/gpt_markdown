@@ -1,4 +1,4 @@
-// Regression test for: https://github.com/Infinitix-LLC/gpt_markdown/issues/104
+// Regression test for: https://github.com/useval/gpt_markdown/issues/104
 //
 // Bug: Tables whose rows are separated with `\r\n` (or bare `\r`) line endings
 // were not recognized and rendered as raw text, because the block-level regexes

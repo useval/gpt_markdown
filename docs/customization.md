@@ -328,7 +328,7 @@ GptMarkdown(
 `backgroundColor` · `borderColor` · `borderWidth` · `borderRadius` · `padding` ·
 `headerPadding` · `fontFamily` · `fontFamilyPackage` · `fontSize` ·
 `textColor` · `showLanguageLabel` · `languageStyle` · `showCopyButton` ·
-`copyLabel` · `copiedLabel`
+`copyLabel` · `copiedLabel` · `highlightWhileStreaming`
 
 ```dart
 styleSheet: const GptMarkdownStyleSheet(
@@ -376,6 +376,12 @@ active light or dark brightness. Common fence aliases include `js`, `ts`,
 `py`, `python3`, `c++`, `sh` and `yml`. Unknown tags fall back to plain
 monospace code, and an omitted tag displays `Code` in the header.
 
+While a fence is still open the block is highlighted again on every source
+update. `highlightWhileStreaming: false` holds plain monospace until the closing
+fence arrives and highlights once, which is worth setting when replies stream
+long blocks. It defaults to true because that is what the package did before the
+field existed.
+
 No syntax-theme field is exposed. `CodeBlockStyle` controls the panel, font and
 base/fallback text appearance; the built-in token palette is automatic. When
 an application needs its own tokenizer or token colors, replace the complete
@@ -410,7 +416,7 @@ GptMarkdown(
 ## TableStyle
 
 `borderColor` · `borderWidth` · `borderRadius` · `cellPadding` ·
-`headerBackground` · `headerTextStyle` · `rowStripeColor`
+`headerBackground` · `headerTextStyle` · `rowStripeColor` · `columnWidth`
 
 ```dart
 styleSheet: const GptMarkdownStyleSheet(
@@ -425,7 +431,16 @@ styleSheet: const GptMarkdownStyleSheet(
 ),
 ```
 
-Tables already scroll horizontally when they exceed the available width.
+`columnWidth` sets one width policy for every column. Left unset, a column is
+sized to its content, which lays every cell out twice — once to measure, once
+for real. `columnWidth: FixedColumnWidth(120)` skips that measurement, which is
+the escape hatch for a large or streaming table.
+
+A flex policy is not. Tables already scroll horizontally when they exceed the
+available width, so the table is laid out against an unbounded width and a flex
+column has no finite width to take a share of: `FlexColumnWidth()` collapses
+the table to zero width and wraps every cell to one character a line.
+[comparison](comparison.md) has the measurements.
 
 ---
 
@@ -536,14 +551,28 @@ styleSheet: const GptMarkdownStyleSheet(
 > formula overflows on a phone. This is the single most common LaTeX
 > complaint.
 
-Maths still needs a renderer — see [getting started](getting-started.md#latex).
+The renderer itself is built in. `latexBuilder` replaces it — see
+[getting started](getting-started.md#latex).
 
 ---
 
 ## Builders
 
-Each builder receives the **fully resolved** style, so it never has to guess a
-default or restate a theme colour.
+Where a builder is handed a style-sheet object, it is the **fully resolved**
+one, so the builder never has to guess a default or restate a theme colour.
+Check the signature first, though: `codeBuilder`, `imageBuilder`,
+`tableBuilder`, `orderedListBuilder` and `unOrderedListBuilder` are handed no
+style-sheet object — they replace the component outright, and `CodeBlockStyle`,
+`ImageStyle`, `TableStyle` and `ListStyle` never reach them. The `TextStyle`
+`tableBuilder` does receive is the ambient body style, empty when the widget
+sets none.
+
+The three deprecated builders carry an unresolved style as well, kept that way
+because the builders written against them expect it: `sourceTagBuilder` is
+handed an empty `TextStyle` whenever `SourceTagStyle.textStyle` is unset,
+`linkBuilder` the ambient body style rather than the resolved link style its
+replacement is given, and `highlightBuilder` the ambient body style — the
+resolved code style reaches it only where the surrounding style is null.
 
 | Builder | Signature |
 |---|---|
@@ -556,9 +585,12 @@ default or restate a theme colour.
 | `tableBuilder` | `(context, rows, TextStyle style, GptMarkdownConfig config)` |
 | `imageBuilder` | `(context, String url, double? width, double? height)` |
 | `latexBuilder` | `(context, String tex, TextStyle style, bool inline)` |
-| `linkBuilder` | `(context, InlineSpan label, String url, TextStyle style)` |
+| `inlineLinkBuilder` | `(LinkBuildDetails details)` → `InlineSpan` |
+| `linkBuilder` | *Deprecated.* `(context, InlineSpan label, String url, TextStyle style)` |
 | `inlineCodeBuilder` | `(context, String code, TextStyle style, InlineCodeStyle codeStyle)` |
-| `sourceTagBuilder` | `(context, String content, TextStyle style)` |
+| `highlightBuilder` | *Deprecated.* `(context, String text, TextStyle style)` |
+| `inlineSourceTagBuilder` | `(SourceTagBuildDetails details)` → `InlineSpan` |
+| `sourceTagBuilder` | *Deprecated.* `(context, String content, TextStyle style)` |
 | `orderedListBuilder` | `(context, String no, Widget child, GptMarkdownConfig config)` |
 | `unOrderedListBuilder` | `(context, Widget child, GptMarkdownConfig config)` |
 
@@ -579,20 +611,82 @@ blockQuoteBuilder: (context, content, style) => DecoratedBox(
 ),
 ```
 
-### inlineCodeBuilder returns a span, not a widget
+### The inline builders return a span, not a widget
 
-Deliberate. A `Widget` has to be wrapped in a `WidgetSpan`, which cannot wrap
-across lines, is skipped by text selection, and sits off the baseline.
+`inlineCodeBuilder`, `inlineLinkBuilder` and `inlineSourceTagBuilder` all
+return an `InlineSpan`. Deliberate. A `Widget` has to be wrapped in a
+`WidgetSpan`, which cannot wrap across lines, is skipped by text selection,
+sits off the baseline, and is one opaque character to the streaming reveal.
+
+Migrating a `linkBuilder`, term by term:
+
+| old positional argument | new |
+|---|---|
+| `context` | `details.context` |
+| `label` (one span) | `details.labelSpans` — already parsed, already styled |
+| `url` | `details.url` |
+| `style` | `details.style` — now the *resolved* link style |
+| — | `details.linkStyle`, the resolved `LinkStyle` |
+| — | `details.isAutolink` |
+| — | `details.onTap`, which calls `onLinkTap` for you |
+| — | `details.hoverStyle` |
+| — | `details.config` |
+
+Because a builder receives one details object rather than positional
+arguments, a later release adds a field here instead of a parameter — so
+nothing you write today stops compiling.
+
+```dart
+// keep the stock link, change one thing
+inlineLinkBuilder: (link) =>
+    link.defaultSpan(style: link.style.copyWith(fontWeight: FontWeight.bold)),
+```
+
+> A `GestureRecognizer` fires only on a `TextSpan` that carries its own `text`,
+> never on one that only has `children`. A parsed link label is the second
+> kind, so `TextSpan(children: link.labelSpans, recognizer: tap)` renders
+> correctly and is silently never tapped. Return `link.defaultSpan()`, a
+> `TappableTextSpan`, or `link.asWidgetSpan()`. A debug assert catches it.
 
 If you genuinely need a widget:
 
 ```dart
 inlineCodeBuilder: (context, code, style, codeStyle) =>
     baselineWidgetSpan(MyChip(code: code, style: style)),
+
+inlineLinkBuilder: (link) => link.asWidgetSpan(MyLinkChip(url: link.url)),
+inlineSourceTagBuilder: (tag) => tag.asWidgetSpan(MyChip(tag.id)),
 ```
 
 `baselineWidgetSpan` aligns it on the text baseline and handles text-scale
 compensation. A bare `WidgetSpan` does neither.
+
+---
+
+## Beyond styles and builders
+
+A style changes appearance and a builder replaces a widget. Neither teaches the
+parser a syntax it does not already know, which is what an extension is for:
+
+| What you are adding | Use |
+|---|---|
+| A block syntax such as `:::warning` | `blockComponents` |
+| An inline token such as `@name` | `inlinePatterns` |
+| A payload that must not be parsed at all | `inlineDirectives` |
+
+> [!WARNING]
+> The older extension arguments, `components` and `inlineComponents`, are
+> deprecated in 1.3.0 and scheduled for removal in 2.0.0. They still work, but
+> passing either — even an empty list — switches the widget to the legacy regex
+> parser, which ignores `blockComponents` and loses the incremental segment
+> cache, the span-level streaming reveal and lazy sliver rendering.
+> `incremental: false` does the same.
+
+Nothing else on this page is affected by that choice: the style objects and
+builders above are honoured on both parsers.
+
+[Custom components](custom-components.md) has the detail, and
+[migration](../MIGRATION.md) the before and after.
 
 ---
 
@@ -628,7 +722,8 @@ configure; it follows `ThemeData` like any other extension.
 > every build, so comparing them would defeat the cache entirely.
 >
 > Give the widget a `key` that changes with the builder, or set it once.
-> Styles, patterns and component lists *are* compared and do update live.
+> Styles, `inlinePatterns`, `blockComponents` and the deprecated component
+> lists *are* compared and do update live.
 
 > [!WARNING]
 > **A raw `WidgetSpan` scales twice.**

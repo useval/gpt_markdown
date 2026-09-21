@@ -65,9 +65,10 @@ class TrackerApi {
     );
     final decoded = response.body.isEmpty ? null : jsonDecode(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message = decoded is Map && decoded['error'] is Map
-          ? (decoded['error'] as Map)['message'] as String? ?? response.body
-          : response.body;
+      final message =
+          decoded is Map && decoded['error'] is Map
+              ? (decoded['error'] as Map)['message'] as String? ?? response.body
+              : response.body;
       throw TrackerException(response.statusCode, message);
     }
     return decoded;
@@ -103,8 +104,9 @@ class TrackerApi {
     return IssuePage.fromJson(json as Map<String, dynamic>);
   }
 
-  Future<Issue> issue(int number) async =>
-      Issue.fromJson(await _send('GET', '/api/issues/$number') as Map<String, dynamic>);
+  Future<Issue> issue(int number) async => Issue.fromJson(
+    await _send('GET', '/api/issues/$number') as Map<String, dynamic>,
+  );
 
   Future<Issue> createIssue({
     required String title,
@@ -147,7 +149,11 @@ class TrackerApi {
 
   Future<Issue> setLabels(int number, List<String> labels) async =>
       Issue.fromJson(
-        await _send('PUT', '/api/issues/$number/labels', body: {'labels': labels})
+        await _send(
+              'PUT',
+              '/api/issues/$number/labels',
+              body: {'labels': labels},
+            )
             as Map<String, dynamic>,
       );
 
@@ -177,10 +183,7 @@ class TrackerApi {
         await _send(
               'GET',
               '/api/requests',
-              query: {
-                if (query.isNotEmpty) 'q': query,
-                'limit': '$limit',
-              },
+              query: {if (query.isNotEmpty) 'q': query, 'limit': '$limit'},
             )
             as Map<String, dynamic>;
     return [
@@ -189,6 +192,7 @@ class TrackerApi {
     ];
   }
 
-  Future<RequestLog> request(int id) async =>
-      RequestLog.fromJson(await _send('GET', '/api/requests/$id') as Map<String, dynamic>);
+  Future<RequestLog> request(int id) async => RequestLog.fromJson(
+    await _send('GET', '/api/requests/$id') as Map<String, dynamic>,
+  );
 }

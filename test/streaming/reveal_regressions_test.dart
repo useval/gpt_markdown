@@ -201,10 +201,18 @@ void main() {
 
       const source = 'Above the rule.\n\n---\n\nBelow the rule.';
       await tester.pumpWidget(
-        _app('', block: GptMarkdownBlockAnimation.fadeIn, key: const ValueKey(1)),
+        _app(
+          '',
+          block: GptMarkdownBlockAnimation.fadeIn,
+          key: const ValueKey(1),
+        ),
       );
       await tester.pumpWidget(
-        _app(source, block: GptMarkdownBlockAnimation.fadeIn, key: const ValueKey(1)),
+        _app(
+          source,
+          block: GptMarkdownBlockAnimation.fadeIn,
+          key: const ValueKey(1),
+        ),
       );
       await tester.pump(const Duration(milliseconds: 50));
       // Streamed in: the rule got an entrance.
@@ -212,7 +220,11 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.pumpWidget(
-        _app(source, block: GptMarkdownBlockAnimation.fadeIn, key: const ValueKey(2)),
+        _app(
+          source,
+          block: GptMarkdownBlockAnimation.fadeIn,
+          key: const ValueKey(2),
+        ),
       );
       await tester.pump();
       // Remounted with the content already present: nothing to enter.
@@ -342,18 +354,16 @@ void main() {
     }
 
     test('fade splits at whitespace only — never inside a word', () {
-      final pieces = leaves(reveal(
-        GptMarkdownAnimation.fade,
-        progressFor: (i) => 0.5,
-      ));
+      final pieces = leaves(
+        reveal(GptMarkdownAnimation.fade, progressFor: (i) => 0.5),
+      );
       expect(pieces, ['alpha', ' beta', ' gamma', ' delta']);
     });
 
     test('wave still styles letter by letter', () {
-      final pieces = leaves(reveal(
-        GptMarkdownAnimation.wave,
-        progressFor: (i) => 0.5,
-      ));
+      final pieces = leaves(
+        reveal(GptMarkdownAnimation.wave, progressFor: (i) => 0.5),
+      );
       expect(pieces.length, 22);
     });
 

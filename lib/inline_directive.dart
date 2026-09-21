@@ -78,7 +78,18 @@ const String _maskClose = '\u{E011}';
 /// Returns [source] unchanged when there is nothing to do, so a document
 /// without directives — which is every document unless the host configured
 /// one — costs one `indexOf` per directive and no allocation.
-String maskInlineDirectives(String source, List<InlineDirective> directives) {
+String maskInlineDirectives(
+  String source,
+  List<InlineDirective> directives, {
+  MarkdownBlockRegistry? blockRegistry,
+}) {
+  if (blockRegistry != null && directives.isNotEmpty) {
+    return _outsideCustomBlocks(
+      source,
+      blockRegistry,
+      (text) => maskInlineDirectives(text, directives),
+    );
+  }
   if (directives.isEmpty) {
     return source;
   }
@@ -188,10 +199,12 @@ List<InlineSpan> expandInlineDirectives(
       out.addAll(rest(text.substring(cursor, start)));
     }
     out.add(
-      directives[index].builder(
-        context,
-        utf8.decode(base64Decode(body.substring(colon + 1))),
-        style,
+      _scaleInlineSpanWidgets(
+        directives[index].builder(
+          context,
+          utf8.decode(base64Decode(body.substring(colon + 1))),
+          style,
+        ),
       ),
     );
     cursor = end + 1;
@@ -222,11 +235,18 @@ const String _patternClose = '\u{E013}';
 /// Fenced code and block maths are skipped: their content is not Markdown, and
 /// a pattern reaching inside them would rewrite the source a reader asked to
 /// see verbatim.
-String maskInlinePatterns(String source, List<InlinePattern> patterns) {
+String maskInlinePatterns(
+  String source,
+  List<InlinePattern> patterns, {
+  MarkdownBlockRegistry? blockRegistry,
+}) {
   if (patterns.isEmpty) {
     return source;
   }
-  final opaque = _opaqueRegions(source);
+  final opaque = [
+    ..._opaqueRegions(source),
+    if (blockRegistry != null) ..._customBlockRegions(source, blockRegistry),
+  ];
   final hits = <({int start, int end, int pattern, String text})>[];
   for (var index = 0; index < patterns.length; index++) {
     for (final match in patterns[index].pattern.allMatches(source)) {
@@ -344,7 +364,7 @@ List<InlineSpan> expandInlinePatterns(
     if (match == null || !pattern.scopes.contains(config.scope)) {
       out.add(TextSpan(text: matched, style: config.style));
     } else {
-      out.add(pattern.builder(context, match, style));
+      out.add(_scaleInlineSpanWidgets(pattern.builder(context, match, style)));
     }
     cursor = end + 1;
   }
@@ -352,4 +372,73 @@ List<InlineSpan> expandInlinePatterns(
     out.addAll(rest(text.substring(cursor)));
   }
   return out;
+}
+
+/// Source ranges owned by extension blocks must stay opaque to inline masks.
+/// Quote markers are stripped for recognition only; offsets remain against
+/// the original source so the block parser can retain container structure.
+List<(int, int)> _customBlockRegions(
+  String source,
+  MarkdownBlockRegistry registry,
+) {
+  final lines = source.split('\n');
+  final quoted = lines
+      .map((line) {
+        var text = line.trimLeft();
+        while (text.startsWith('>')) {
+          text = text.substring(1).trimLeft();
+        }
+        return text;
+      })
+      .toList(growable: false);
+  final offsets = <int>[0];
+  for (final line in lines) {
+    offsets.add(offsets.last + line.length + 1);
+  }
+  final regions = <(int, int)>[];
+  var fence = false;
+  var math = false;
+  for (var i = 0; i < lines.length; i++) {
+    final text = quoted[i];
+    if (fence) {
+      if (text.startsWith('```')) fence = false;
+      continue;
+    }
+    if (math) {
+      if (text.contains(r'\]')) math = false;
+      continue;
+    }
+    final match =
+        registry.match(lines, i) ??
+        (lines[i].trimLeft().startsWith('>')
+            ? registry.match(quoted, i)
+            : null);
+    if (match != null) {
+      regions.add((offsets[i], min(source.length, offsets[match.endLine])));
+      i = match.endLine - 1;
+    } else if (text.startsWith('```')) {
+      fence = true;
+    } else if (text.startsWith(r'\[') && !text.contains(r'\]')) {
+      math = true;
+    }
+  }
+  return regions;
+}
+
+String _outsideCustomBlocks(
+  String source,
+  MarkdownBlockRegistry registry,
+  String Function(String) transform,
+) {
+  final regions = _customBlockRegions(source, registry);
+  if (regions.isEmpty) return transform(source);
+  final out = StringBuffer();
+  var cursor = 0;
+  for (final region in regions) {
+    out.write(transform(source.substring(cursor, region.$1)));
+    out.write(source.substring(region.$1, region.$2));
+    cursor = region.$2;
+  }
+  out.write(transform(source.substring(cursor)));
+  return out.toString();
 }

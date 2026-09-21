@@ -14,7 +14,12 @@
 /// way).
 library;
 
-List<String> splitStreamSegments(String src) {
+import 'block_syntax.dart';
+
+List<String> splitStreamSegments(
+  String src, {
+  MarkdownBlockRegistry? blockRegistry,
+}) {
   final normalized =
       src.contains('\r')
           ? src.replaceAll('\r\n', '\n').replaceAll('\r', '\n')
@@ -32,7 +37,8 @@ List<String> splitStreamSegments(String src) {
     }
   }
 
-  for (final line in lines) {
+  for (var index = 0; index < lines.length; index++) {
+    final line = lines[index];
     final trimmed = line.trimLeft();
 
     if (inFence) {
@@ -47,6 +53,13 @@ List<String> splitStreamSegments(String src) {
       if (line.contains('\\]')) {
         inLatex = false;
       }
+      continue;
+    }
+
+    final custom = blockRegistry?.match(lines, index);
+    if (custom != null) {
+      current.addAll(lines.sublist(index, custom.endLine));
+      index = custom.endLine - 1;
       continue;
     }
 
@@ -74,4 +87,42 @@ List<String> splitStreamSegments(String src) {
   }
   closeSegment();
   return segments;
+}
+
+/// Retains settled segment strings between appends. Only the previous tail
+/// and appended source are split again. Edits or CR normalization fall back to
+/// a full split. Callers still compare source prefixes; this is not O(1).
+class MarkdownSegmentCache {
+  String _source = '';
+  List<String> _segments = const [];
+  MarkdownBlockRegistry? _registry;
+
+  List<String> update(String source, {MarkdownBlockRegistry? blockRegistry}) {
+    if (source == _source && identical(_registry, blockRegistry)) {
+      return _segments;
+    }
+    var from = 0;
+    var prefix = const <String>[];
+    if (identical(_registry, blockRegistry) &&
+        _segments.isNotEmpty &&
+        !source.contains('\r') &&
+        source.startsWith(_source)) {
+      from = _source.lastIndexOf(_segments.last);
+      if (from >= 0) {
+        prefix = _segments.sublist(0, _segments.length - 1);
+      } else {
+        from = 0;
+      }
+    }
+    _segments = List.unmodifiable([
+      ...prefix,
+      ...splitStreamSegments(
+        source.substring(from),
+        blockRegistry: blockRegistry,
+      ),
+    ]);
+    _source = source;
+    _registry = blockRegistry;
+    return _segments;
+  }
 }

@@ -221,8 +221,10 @@ void main() {
       final doc = p('# Title\r\n\r\nHello\rWorld');
       expect(doc.children[0], isA<MdHeading>());
       final para = doc.children[1] as MdParagraph;
-      // CR-split lines join into one paragraph separated by a space.
-      expect(inlineText(para.children), 'Hello World');
+      // Both endings become a plain newline, and the line break survives into
+      // the paragraph — a single newline is a line break here, not a space.
+      expect(inlineText(para.children), 'Hello\nWorld');
+      expect(inlineText(para.children), isNot(contains('\r')));
     });
 
     test('dollar-dollar block form', () {

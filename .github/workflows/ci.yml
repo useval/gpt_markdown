@@ -12,9 +12,12 @@ concurrency:
 
 jobs:
   check:
-    # Pinned: golden files are platform-sensitive, so they must be generated
-    # and verified on one image. Changing this will fail every golden test.
-    runs-on: ubuntu-latest
+    # Pinned to a concrete image, not `ubuntu-latest`: golden files are
+    # platform-sensitive, so they must be generated and verified on one image.
+    # `ubuntu-latest` silently migrates to the next LTS and would fail every
+    # golden test on a push that changed nothing. Bump this deliberately, and
+    # regenerate the goldens in the same change.
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4

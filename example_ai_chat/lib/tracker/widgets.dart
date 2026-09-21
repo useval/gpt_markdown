@@ -73,9 +73,8 @@ class LabelChip extends StatelessWidget {
     final swatch = label.swatch;
     // Relative luminance decides black or white text, so a pale label like
     // `wontfix` stays readable.
-    final onSwatch = swatch.computeLuminance() > 0.5
-        ? Colors.black87
-        : Colors.white;
+    final onSwatch =
+        swatch.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -84,9 +83,13 @@ class LabelChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: swatch,
           borderRadius: BorderRadius.circular(999),
-          border: selected
-              ? Border.all(color: Theme.of(context).colorScheme.onSurface, width: 2)
-              : Border.all(color: swatch.withValues(alpha: 0.6)),
+          border:
+              selected
+                  ? Border.all(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    width: 2,
+                  )
+                  : Border.all(color: swatch.withValues(alpha: 0.6)),
         ),
         child: Text(
           label.name,

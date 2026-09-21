@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
 
 import 'markdown_config.dart';
@@ -7,9 +9,20 @@ import 'markdown_config.dart';
 /// [LinkButton] calls this on every rebuild so the span is always coloured
 /// with the current hover state — normal [LinkButton.color] or
 /// [LinkButton.hoverColor].
+@Deprecated(
+  'Only used by LinkButton, which is itself deprecated. '
+  'Will be removed in 2.0.0.',
+)
 typedef LinkSpanBuilder = InlineSpan Function(Color color);
 
 /// A custom button widget that displays a link with customisable colours.
+@Deprecated(
+  'The default link rendering is a LinkTextSpan now, so nothing in the package '
+  'builds this. It is a Widget, so it has to sit in a WidgetSpan: off the text '
+  'baseline, unable to wrap across lines, skipped by text selection, and one '
+  'opaque character to the streaming reveal. Use inlineLinkBuilder, or '
+  "GptMarkdown.styleSheet's LinkStyle to restyle. Will be removed in 2.0.0.",
+)
 class LinkButton extends StatefulWidget {
   /// The raw link text (used only as fallback when neither [child] nor
   /// [spanBuilder] is provided).

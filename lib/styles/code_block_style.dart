@@ -27,7 +27,13 @@ class CodeBlockStyle {
     this.showCopyButton,
     this.copyLabel,
     this.copiedLabel,
+    this.highlightWhileStreaming,
   });
+
+  /// Whether to highlight an unfinished fence on every source update.
+  /// Defaults to true for compatibility. False renders plain code until the
+  /// closing fence arrives, avoiding repeated highlighting of large blocks.
+  final bool? highlightWhileStreaming;
 
   /// Panel fill. Defaults to `ColorScheme.surfaceContainer`.
   final Color? backgroundColor;
@@ -95,6 +101,8 @@ class CodeBlockStyle {
       showCopyButton: showCopyButton ?? other.showCopyButton,
       copyLabel: copyLabel ?? other.copyLabel,
       copiedLabel: copiedLabel ?? other.copiedLabel,
+      highlightWhileStreaming:
+          highlightWhileStreaming ?? other.highlightWhileStreaming,
     );
   }
 
@@ -123,6 +131,7 @@ class CodeBlockStyle {
       showCopyButton: showCopyButton ?? true,
       copyLabel: copyLabel ?? 'Copy code',
       copiedLabel: copiedLabel ?? 'Copied!',
+      highlightWhileStreaming: highlightWhileStreaming ?? true,
     );
   }
 
@@ -143,6 +152,7 @@ class CodeBlockStyle {
     bool? showCopyButton,
     String? copyLabel,
     String? copiedLabel,
+    bool? highlightWhileStreaming,
   }) {
     return CodeBlockStyle(
       backgroundColor: backgroundColor ?? this.backgroundColor,
@@ -160,6 +170,8 @@ class CodeBlockStyle {
       showCopyButton: showCopyButton ?? this.showCopyButton,
       copyLabel: copyLabel ?? this.copyLabel,
       copiedLabel: copiedLabel ?? this.copiedLabel,
+      highlightWhileStreaming:
+          highlightWhileStreaming ?? this.highlightWhileStreaming,
     );
   }
 
@@ -194,6 +206,8 @@ class CodeBlockStyle {
       showCopyButton: t < 0.5 ? a.showCopyButton : b.showCopyButton,
       copyLabel: t < 0.5 ? a.copyLabel : b.copyLabel,
       copiedLabel: t < 0.5 ? a.copiedLabel : b.copiedLabel,
+      highlightWhileStreaming:
+          t < 0.5 ? a.highlightWhileStreaming : b.highlightWhileStreaming,
     );
   }
 
@@ -217,7 +231,8 @@ class CodeBlockStyle {
         other.languageStyle == languageStyle &&
         other.showCopyButton == showCopyButton &&
         other.copyLabel == copyLabel &&
-        other.copiedLabel == copiedLabel;
+        other.copiedLabel == copiedLabel &&
+        other.highlightWhileStreaming == highlightWhileStreaming;
   }
 
   @override
@@ -237,5 +252,6 @@ class CodeBlockStyle {
     showCopyButton,
     copyLabel,
     copiedLabel,
+    highlightWhileStreaming,
   );
 }

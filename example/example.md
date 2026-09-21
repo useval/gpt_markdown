@@ -2,7 +2,7 @@
 
 Markdown and LaTeX rendering for Flutter, built for AI chat output.
 
-Full guides live in [`docs/`](https://github.com/Infinitix-LLC/gpt_markdown/tree/main/docs).
+Full guides live in [`docs/`](https://github.com/useval/gpt_markdown/tree/main/docs).
 Run `flutter run` in `example/` for the interactive demos.
 
 ---
@@ -78,9 +78,16 @@ GptMarkdown(
 ```
 
 Builders exist for every component: `headingBuilder`, `checkboxBuilder`,
-`radioOptionBuilder`, `hrBuilder`, `tableBuilder`, `linkBuilder`,
-`sourceTagBuilder`, `orderedListBuilder`, `unOrderedListBuilder` and
-`inlineCodeBuilder`.
+`radioOptionBuilder`, `hrBuilder`, `tableBuilder`, `orderedListBuilder`,
+`unOrderedListBuilder`, `inlineCodeBuilder`, `inlineLinkBuilder` and
+`inlineSourceTagBuilder`.
+
+The three that return a `Widget` — `linkBuilder`, `sourceTagBuilder` and
+`highlightBuilder` — are deprecated in 1.3.0 and removed in 2.0.0. A widget has
+to sit in a `WidgetSpan`, which puts it off the text baseline, stops it
+wrapping across lines and hides it from text selection. Their replacements
+(`inlineLinkBuilder`, `inlineSourceTagBuilder`, `inlineCodeBuilder`) return an
+`InlineSpan` instead. See [MIGRATION.md](../MIGRATION.md).
 
 ---
 
@@ -212,8 +219,8 @@ GptMarkdown(reply, autolink: false)
 
 | | |
 |---|---|
-| [Getting started](https://github.com/Infinitix-LLC/gpt_markdown/blob/main/docs/getting-started.md) | Install, syntax, taps, LaTeX, RTL |
-| [Customization](https://github.com/Infinitix-LLC/gpt_markdown/blob/main/docs/customization.md) | Every style field and builder |
-| [Streaming](https://github.com/Infinitix-LLC/gpt_markdown/blob/main/docs/streaming.md) | Pacing, performance, limitations |
-| [Inline syntax](https://github.com/Infinitix-LLC/gpt_markdown/blob/main/docs/inline-syntax.md) | Autolinks, patterns, scopes |
+| [Getting started](https://github.com/useval/gpt_markdown/blob/main/docs/getting-started.md) | Install, syntax, taps, LaTeX, RTL |
+| [Customization](https://github.com/useval/gpt_markdown/blob/main/docs/customization.md) | Every style field and builder |
+| [Streaming](https://github.com/useval/gpt_markdown/blob/main/docs/streaming.md) | Pacing, performance, limitations |
+| [Inline syntax](https://github.com/useval/gpt_markdown/blob/main/docs/inline-syntax.md) | Autolinks, patterns, scopes |
 | [Playground](https://gptmarkdown.com/playground) | Try it in the browser |

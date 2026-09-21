@@ -111,52 +111,52 @@ def greet(name: str, count: int = 3):
           null,
         ),
       );
+      final semantics = tester.ensureSemantics();
       await pumpMarkdown(tester, '```dart\nfinal value = 1;\n```');
 
       expect(find.text('Copy code'), findsNothing);
       expect(find.byIcon(Icons.content_copy_rounded), findsOneWidget);
+      // Icon-only: the label is the tooltip and the accessible name, never
+      // visible text. The control is interactive from the first build — it
+      // used to be a plain icon until a pointer arrived, which left it
+      // unreachable by keyboard and swallowed the first stylus tap. See
+      // test/regression/code_copy_reachability_test.dart.
+      expect(find.byType(InkWell), findsOneWidget);
       expect(
-        tester.widget<IconButton>(find.byType(IconButton)).onPressed,
-        isNotNull,
+        tester.getSemantics(find.byIcon(Icons.content_copy_rounded)).label,
+        contains('Copy code'),
       );
+      semantics.dispose();
 
       await tester.tap(find.byIcon(Icons.content_copy_rounded));
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+      // The first tap promotes it, so the check mark animates like the real
+      // control rather than snapping.
+      expect(tester.widget<InkWell>(find.byType(InkWell)).onTap, isNotNull);
+      // The button is deliberately NOT pointer-disabled during the check-mark
+      // window. Wrapping it in `IgnorePointer`/`AbsorbPointer` did not stop a
+      // second tap reaching an ancestor — an ancestor is already on the
+      // hit-test path — it only stopped the button claiming the gesture, so
+      // the tap fell through to whatever wraps the code block. The
+      // duplicate-clipboard guard lives in `_copyCode`; see
+      // test/regression/code_copy_tap_fallthrough_test.dart.
       expect(
-        tester.widget<IconButton>(find.byType(IconButton)).onPressed,
-        isNotNull,
-      );
-      expect(
-        tester
-            .widget<IgnorePointer>(
-              find.byWidgetPredicate(
-                (widget) =>
-                    widget is IgnorePointer && widget.child is IconButton,
-              ),
-            )
-            .ignoring,
-        isTrue,
+        find.ancestor(
+          of: find.byIcon(Icons.check_rounded),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                (widget is IgnorePointer && widget.ignoring) ||
+                (widget is AbsorbPointer && widget.absorbing),
+          ),
+        ),
+        findsNothing,
       );
 
       await tester.pump(const Duration(seconds: 2));
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.byIcon(Icons.content_copy_rounded), findsOneWidget);
-      expect(
-        tester.widget<IconButton>(find.byType(IconButton)).onPressed,
-        isNotNull,
-      );
-      expect(
-        tester
-            .widget<IgnorePointer>(
-              find.byWidgetPredicate(
-                (widget) =>
-                    widget is IgnorePointer && widget.child is IconButton,
-              ),
-            )
-            .ignoring,
-        isFalse,
-      );
+      expect(tester.widget<InkWell>(find.byType(InkWell)).onTap, isNotNull);
     });
 
     testWidgets('code block preserves content', (tester) async {

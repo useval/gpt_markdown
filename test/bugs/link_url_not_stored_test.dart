@@ -1,51 +1,36 @@
-/// BUG: LinkButton.url property is not populated when links are created
+/// A link's url must be reachable from the rendered tree, not just captured
+/// inside a tap closure.
 ///
-/// The LinkButton widget has a `url` property, but it is never set when
-/// creating LinkButton instances in markdown_component.dart. The URL is
-/// only captured in the onPressed closure, making it inaccessible for
-/// inspection or testing.
+/// It was not. A link was a `LinkButton` widget whose `url` property
+/// `buildLinkSpan` never set, so the url existed only inside the `onPressed`
+/// closure and nothing could inspect it — which is why the serialised form in
+/// `test/README.md` never matched what the serialiser actually wrote.
 ///
-/// Location: lib/markdown_component.dart, ATagMd.build() method
-/// The LinkButton constructor call is missing: url: url
+/// A link is a `LinkTextSpan` now and carries `url` as a field, so these pass.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
 import '../utils/test_helpers.dart';
 
 void main() {
-  group('Regression: Link URL not stored in LinkButton widget', () {
-    testWidgets(
-      'link URL should be accessible in serialized output '
-      '[BUG: LinkButton.url not populated in ATagMd.build()]',
-      skip: true,
-      (tester) async {
-        await pumpMarkdown(tester, '[click here](https://example.com)');
-        final output = getSerializedOutput(tester);
+  group('Regression: link url is reachable from the rendered tree', () {
+    testWidgets('link URL should be accessible in serialized output '
+        '[fixed: the url now rides on LinkTextSpan]', (tester) async {
+      await pumpMarkdown(tester, '[click here](https://example.com)');
+      final output = getSerializedOutput(tester);
 
-        // BUG: This test fails because the URL is not passed to LinkButton
-        // Expected: LINK("click here", url="https://example.com")
-        // Actual: LINK("click here")
-        expect(
-          output,
-          contains('LINK("click here", url="https://example.com")'),
-        );
-      },
-    );
+      expect(output, contains('LINK("click here", url="https://example.com")'));
+    });
 
-    testWidgets(
-      'link with path should include full URL '
-      '[BUG: LinkButton.url not populated in ATagMd.build()]',
-      skip: true,
-      (tester) async {
-        await pumpMarkdown(tester, '[docs](https://example.com/docs/page)');
-        final output = getSerializedOutput(tester);
+    testWidgets('link with path should include full URL '
+        '[fixed: the url now rides on LinkTextSpan]', (tester) async {
+      await pumpMarkdown(tester, '[docs](https://example.com/docs/page)');
+      final output = getSerializedOutput(tester);
 
-        // BUG: URL is not included in the output
-        expect(
-          output,
-          contains('LINK("docs", url="https://example.com/docs/page")'),
-        );
-      },
-    );
+      expect(
+        output,
+        contains('LINK("docs", url="https://example.com/docs/page")'),
+      );
+    });
   });
 }

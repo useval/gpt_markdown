@@ -1,5 +1,9 @@
 {
-    "cSpell.words": [
-        "cupertino"
-    ]
+  "cSpell.words": [
+    "cupertino"
+  ],
+  // The version-agnostic symlink, not `.fvm/versions/<version>`: bumping the
+  // pin in `.fvmrc` then needs no edit here, and a stale path would silently
+  // leave the analyzer on a different SDK than the one builds use.
+  "dart.flutterSdkPath": ".fvm/flutter_sdk"
 }

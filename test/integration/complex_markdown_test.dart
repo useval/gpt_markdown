@@ -57,7 +57,7 @@ Use the `rewards card` for discounts.
       await pumpMarkdown(tester, complexDocument);
 
       // Should render successfully
-      expect(find.byType(RichText), findsWidgets);
+      expect(find.byWidgetPredicate((w) => w is RichText), findsWidgets);
     });
 
     testWidgets('contains all heading levels', (tester) async {
@@ -65,7 +65,7 @@ Use the `rewards card` for discounts.
 
       // Document has h1, h2, h3 headings
       // They should all render (even if serialized differently)
-      expect(find.byType(RichText), findsWidgets);
+      expect(find.byWidgetPredicate((w) => w is RichText), findsWidgets);
     });
 
     testWidgets('contains unordered list items', (tester) async {
@@ -141,9 +141,9 @@ Use the `rewards card` for discounts.
       // Links in list, table, and checkbox sections
       expect(output, contains('LINK'));
       // Link in unordered list
-      expect(output, contains('LINK("Recipe ideas")'));
+      expect(output, contains('LINK("Recipe ideas", url='));
       // Link in checkbox item
-      expect(output, contains('LINK("Grocery Store")'));
+      expect(output, contains('LINK("Grocery Store", url='));
     });
 
     testWidgets('contains bold text', (tester) async {
@@ -204,7 +204,7 @@ Some introductory text with **bold** and *italic* formatting.
     testWidgets('nested document renders completely', (tester) async {
       await pumpMarkdown(tester, nestedDocument);
 
-      expect(find.byType(RichText), findsWidgets);
+      expect(find.byWidgetPredicate((w) => w is RichText), findsWidgets);
     });
 
     testWidgets('has correct element counts', (tester) async {

@@ -8,35 +8,52 @@ that needs more than a one-line description.
 | Option | Default | Purpose |
 |---|---|---|
 | `data` | required | Markdown source passed as the first positional argument |
-| `style` | inherited | Base `TextStyle`; headings, markers and inline code derive from it |
-| `textDirection` | `TextDirection.ltr` | Direction used by paragraphs and mixed inline widgets |
+| `style` | inherited | Base `TextStyle`; markers and inline code derive from it, heading sizes come from the theme |
+| `textDirection` | `TextDirection.ltr` | Direction used by paragraphs, inline widgets and block alignment |
 | `textAlign` | inherited | Paragraph alignment |
 | `textScaler` | `MediaQuery` | Explicit scaler propagated to text and inline widgets |
 | `maxLines` | unlimited | Maximum paragraph lines |
 | `overflow` | inherited | Overflow behavior when `maxLines` is reached |
 
 The widget sizes itself to its content and does not provide vertical scrolling.
-See [getting started](getting-started.md).
+`textDirection` wraps the whole document in a `Directionality`, so blocks and
+builder subtrees follow it instead of the ambient direction: a widget dropped
+into an RTL app lays its blocks out left to right until you pass the direction
+in. See [getting started](getting-started.md).
 
 ## Parsing and syntax
 
 | Option | Default | Purpose |
 |---|---|---|
-| `incremental` | `true` | Uses plusparse and caches unchanged top-level segments |
 | `useDollarSignsForLatex` | `false` | Enables `$…$` and `$$…$$` maths parsing |
 | `latexWorkaround` | none | Transforms TeX immediately before rendering |
 | `autolink` | `true` | Enables bare URL, host and email autolinking |
 | `autolinkSchemes` | empty set | Additional schemes accepted as bare links |
 | `inlineDirectives` | none | Protects delimited host data from Markdown parsing |
 | `inlinePatterns` | none | Adds consumer-defined inline tokens to both parser paths |
-| `components` | built-ins | Replaces the legacy block-component list |
-| `inlineComponents` | built-ins | Replaces the legacy inline-component list |
+| `blockComponents` | none | Adds new block syntax while staying on plusparse |
+| `incremental` | `true` | *Deprecated.* Delete the argument; plusparse is the default, and `false` opts back into the legacy parser |
+| `components` | built-ins | *Deprecated.* Replaces the legacy block-component list; use `blockComponents` |
+| `inlineComponents` | built-ins | *Deprecated.* Replaces the legacy inline-component list; use `inlinePatterns` or `inlineDirectives` |
 
-Custom `components` or `inlineComponents` select the legacy parser even when
-`incremental` is true. Passing a short list replaces the defaults rather than
-extending them. Build block lists on top of
-`MarkdownComponent.globalComponents` and inline lists on top of
-`MarkdownComponent.inlineComponents`. See
+`blockComponents` is the modern route for new block grammar: it supplements the
+built-in blocks and keeps plusparse, its segment cache, the span-level
+streaming reveal and lazy sliver rendering. Inline syntax goes to
+`inlinePatterns`, or to `inlineDirectives` where the host has already wrapped
+the region in sentinels.
+
+`incremental`, `components` and `inlineComponents` are deprecated, with removal
+slated for 2.0.0; until then they behave as they always have. All three lead to
+the legacy regex parser. Passing `components` or `inlineComponents` — even an
+empty list — selects it outright, and `incremental: false` selects it unless an
+animating `animation` holds plusparse open, since the span-level reveal exists
+only on that path. The legacy parser ignores `blockComponents`, so a registered
+block syntax renders as ordinary Markdown with no warning, and it has no
+incremental segment cache, so each text change re-parses and re-lays-out the
+whole message rather than its tail segment. A legacy list also replaces the
+built-ins rather than extending them, which is why existing code spreads the
+equally deprecated `MarkdownComponent.globalComponents` or
+`MarkdownComponent.inlineComponents` into its own list. See
 [custom components](custom-components.md).
 
 ## Streaming and animation
@@ -53,7 +70,8 @@ extending them. Build block lists on top of
 
 `isStreaming`, `charactersPerSecond` and `revealFadeSeconds` matter only when a
 character reveal is active. Block animation is an independent axis.
-`incremental` remains useful with `animation: none`. See
+The incremental segment cache applies with `animation: none` as well;
+`incremental: false` gives it up along with the rest of plusparse. See
 [streaming and incremental rendering](streaming.md).
 
 ## Appearance
@@ -62,10 +80,13 @@ character reveal is active. Block animation is an independent axis.
 |---|---|---|
 | `styleSheet` | themed defaults | Per-component visual overrides |
 | `inlineCodeStyle` | themed defaults | Convenience override for inline code only |
-| `followLinkColor` | `false` | Lets nested link-label content inherit the link color |
+| `followLinkColor` | `false` | Inert; `LinkStyle` decides how a link is painted |
 
 Use `GptMarkdownThemeData` for app-wide defaults and `styleSheet` for one
-widget. Widget fields win over theme fields one property at a time. See
+widget. Widget fields win over theme fields one property at a time.
+`followLinkColor` is plumbed as far as the render config and then read by
+nothing, so a link label paints the same whichever value you pass; set
+`LinkStyle` on the style sheet instead. See
 [customization](customization.md).
 
 ## Builders
@@ -83,14 +104,23 @@ Builders replace structure. All are optional:
 | `tableBuilder` | A table |
 | `imageBuilder` | An image |
 | `latexBuilder` | Inline or block TeX |
-| `linkBuilder` | A Markdown or automatic link |
+| `inlineLinkBuilder` | A Markdown or automatic link, as a span |
+| `linkBuilder` | *Deprecated.* A link, as a widget |
 | `inlineCodeBuilder` | The span for inline code |
-| `sourceTagBuilder` | A citation/source tag |
+| `highlightBuilder` | *Deprecated.* Inline code, as a widget |
+| `inlineSourceTagBuilder` | A citation/source tag, as a span |
+| `sourceTagBuilder` | *Deprecated.* A citation/source tag, as a widget |
 | `orderedListBuilder` | An ordered-list item |
 | `unOrderedListBuilder` | An unordered-list item |
 
-`highlightBuilder` is deprecated; use `inlineCodeBuilder`. Builder signatures
-and resolved styles are listed in [customization](customization.md#builders).
+`highlightBuilder`, `linkBuilder` and `sourceTagBuilder` are deprecated; use
+`inlineCodeBuilder`, `inlineLinkBuilder` and `inlineSourceTagBuilder`. Each
+returns an `InlineSpan` instead of a `Widget`, which keeps the content on the
+text baseline, wrapping across lines and selectable. Together with
+`incremental`, `components` and `inlineComponents` they are the whole
+deprecated surface of the constructor; every one of them still works and is
+slated for removal in 2.0.0. Builder signatures and resolved styles are listed
+in [customization](customization.md#builders).
 
 ## Callbacks
 
@@ -110,6 +140,10 @@ automatically.
 
 1. Use `style` for surrounding typography.
 2. Use a style object for component appearance.
-3. Use `InlinePattern` for app-specific inline tokens.
+3. Use `InlinePattern` for app-specific inline tokens, or `InlineDirective`
+   for a delimited payload the parser must not read.
 4. Use a builder when the component's structure must change.
-5. Use `MarkdownComponent` only for genuinely new grammar.
+5. Use `blockComponents` for genuinely new block grammar.
+6. Reach for the `MarkdownComponent` route — a `BlockMd` or `InlineMd`
+   subclass passed through `components` or `inlineComponents` — only where
+   the legacy parser is acceptable; all four are deprecated and go in 2.0.0.

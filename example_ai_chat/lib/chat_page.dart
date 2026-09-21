@@ -40,7 +40,8 @@ class _ChatPageState extends State<ChatPage> {
   final _inputFocus = FocusNode();
   final _scroll = ScrollController();
 
-  late ChatConfig _config = widget.initialConfig ?? ChatConfig.fromEnvironment();
+  late ChatConfig _config =
+      widget.initialConfig ?? ChatConfig.fromEnvironment();
   final List<ChatMessage> _history = [];
 
   /// The id the proxy recorded this exchange under, so an issue filed from
@@ -212,13 +213,13 @@ class _ChatPageState extends State<ChatPage> {
   /// the current endpoint rather than configured separately.
   TrackerApi get _tracker => TrackerApi(_config);
 
-  Future<void> _openIssues() => Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => IssuesPage(api: _tracker)),
-  );
+  Future<void> _openIssues() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => IssuesPage(api: _tracker)));
 
-  Future<void> _openHistory() => Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => RequestsPage(api: _tracker)),
-  );
+  Future<void> _openHistory() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => RequestsPage(api: _tracker)));
 
   /// Files an issue against the reply currently on screen, carrying the exact
   /// Markdown that produced it.
@@ -230,17 +231,19 @@ class _ChatPageState extends State<ChatPage> {
     );
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => NewIssuePage(
-          api: _tracker,
-          initialTitle: '',
-          initialBody: prompt.content.isEmpty
-              ? ''
-              : '**Prompt**\n\n> ${prompt.content.replaceAll('\n', '\n> ')}\n\n'
-                    '**What looks wrong**\n\n',
-          markdown: _reply,
-          requestId: _requestId,
-          initialLabels: const {'bug'},
-        ),
+        builder:
+            (_) => NewIssuePage(
+              api: _tracker,
+              initialTitle: '',
+              initialBody:
+                  prompt.content.isEmpty
+                      ? ''
+                      : '**Prompt**\n\n> ${prompt.content.replaceAll('\n', '\n> ')}\n\n'
+                          '**What looks wrong**\n\n',
+              markdown: _reply,
+              requestId: _requestId,
+              initialLabels: const {'bug'},
+            ),
       ),
     );
   }
@@ -300,11 +303,12 @@ class _ChatPageState extends State<ChatPage> {
                 }
               });
             },
-            itemBuilder: (_) => [
-              _check('incremental', 'Incremental rendering', _incremental),
-              _check('fade', 'Fade reveal', _fadeReveal),
-              _check('metrics', 'Metrics bar', _showMetrics),
-            ],
+            itemBuilder:
+                (_) => [
+                  _check('incremental', 'Incremental rendering', _incremental),
+                  _check('fade', 'Fade reveal', _fadeReveal),
+                  _check('metrics', 'Metrics bar', _showMetrics),
+                ],
           ),
           IconButton(
             tooltip: 'Endpoint settings',
@@ -348,10 +352,11 @@ class _ChatPageState extends State<ChatPage> {
         icon: Icons.auto_awesome_outlined,
         color: theme.colorScheme.primary,
         title: 'Ask something',
-        body: _config.isConfigured
-            ? 'The reply renders here as one GptMarkdown widget.\n'
-                  'Ask for tables, LaTeX and code to stress the parser.'
-            : 'Set a base URL and model in settings first.',
+        body:
+            _config.isConfigured
+                ? 'The reply renders here as one GptMarkdown widget.\n'
+                    'Ask for tables, LaTeX and code to stress the parser.'
+                : 'Set a base URL and model in settings first.',
       );
     }
 
@@ -367,10 +372,12 @@ class _ChatPageState extends State<ChatPage> {
               width: double.infinity,
               child: GptMarkdown(
                 _reply,
+                // ignore: deprecated_member_use
                 incremental: _incremental,
-                animation: _fadeReveal
-                    ? GptMarkdownAnimation.fade
-                    : GptMarkdownAnimation.none,
+                animation:
+                    _fadeReveal
+                        ? GptMarkdownAnimation.fade
+                        : GptMarkdownAnimation.none,
                 isStreaming: _isStreaming,
                 charactersPerSecond: 300,
                 style: theme.textTheme.bodyLarge,
@@ -494,15 +501,15 @@ class _ChatPageState extends State<ChatPage> {
             const SizedBox(width: 10),
             _isStreaming
                 ? IconButton.filled(
-                    tooltip: 'Stop',
-                    onPressed: _stop,
-                    icon: const Icon(Icons.stop_rounded),
-                  )
+                  tooltip: 'Stop',
+                  onPressed: _stop,
+                  icon: const Icon(Icons.stop_rounded),
+                )
                 : IconButton.filled(
-                    tooltip: 'Send',
-                    onPressed: _send,
-                    icon: const Icon(Icons.arrow_upward_rounded),
-                  ),
+                  tooltip: 'Send',
+                  onPressed: _send,
+                  icon: const Icon(Icons.arrow_upward_rounded),
+                ),
           ],
         ),
       ),

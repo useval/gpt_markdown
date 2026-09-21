@@ -1,3 +1,5 @@
+import 'custom_widgets/markdown_text_scaling.dart';
+export 'custom_widgets/markdown_text_scaling.dart';
 import 'package:flutter/material.dart';
 import 'package:gpt_markdown/custom_widgets/markdown_config.dart';
 
@@ -7,6 +9,7 @@ export 'package:gpt_markdown/custom_widgets/markdown_config.dart';
 
 // Inline `code` styling is configured by consumers.
 export 'package:gpt_markdown/custom_widgets/inline_code.dart';
+export 'package:gpt_markdown/custom_widgets/inline_tap.dart';
 
 // Reveal animation for streamed replies.
 export 'package:gpt_markdown/streaming/streaming_markdown.dart';
@@ -42,6 +45,7 @@ import 'dart:math';
 
 import 'custom_widgets/code_field.dart';
 import 'custom_widgets/inline_code.dart';
+import 'custom_widgets/inline_tap.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -75,13 +79,16 @@ export 'plusparse/plusparse.dart';
 
 part 'theme.dart';
 part 'inline_pattern.dart';
+part 'block_component.dart';
 part 'autolink.dart';
 part 'markdown_component.dart';
 part 'shared_render.dart';
 part 'md_widget.dart';
 part 'inline_directive.dart';
+part 'plusparse/autolink_scan.dart';
 part 'plusparse/renderer.dart';
 part 'plusparse/incremental.dart';
+part 'plusparse/sliver.dart';
 
 /// This widget create a full markdown widget as a column view.
 class GptMarkdown extends StatelessWidget {
@@ -98,20 +105,29 @@ class GptMarkdown extends StatelessWidget {
     this.onLinkTap,
     this.latexBuilder,
     this.codeBuilder,
+    this.inlineSourceTagBuilder,
+    @Deprecated('Use inlineSourceTagBuilder. Will be removed in 2.0.0.')
     this.sourceTagBuilder,
     this.inlineDirectives,
     this.inlineCodeBuilder,
     @Deprecated('Use inlineCodeBuilder. Will be removed in 2.0.0.')
     this.highlightBuilder,
+    this.inlineLinkBuilder,
+    @Deprecated('Use inlineLinkBuilder. Will be removed in 2.0.0.')
     this.linkBuilder,
     this.maxLines,
     this.overflow,
     this.orderedListBuilder,
     this.unOrderedListBuilder,
     this.tableBuilder,
+    @Deprecated('Use blockComponents. Will be removed in 2.0.0.')
     this.components,
+    @Deprecated(
+      'Use inlinePatterns or inlineDirectives. Will be removed in 2.0.0.',
+    )
     this.inlineComponents,
     this.inlinePatterns,
+    this.blockComponents,
     this.inlineCodeStyle,
     this.styleSheet,
     this.blockQuoteBuilder,
@@ -133,6 +149,10 @@ class GptMarkdown extends StatelessWidget {
     this.blockAnimationDuration = const Duration(milliseconds: 200),
     this.blockAnimationCurve = Curves.easeOut,
     this.useDollarSignsForLatex = false,
+    @Deprecated(
+      'Remove this argument; plusparse is the default. '
+      'Will be removed in 2.0.0.',
+    )
     this.incremental = true,
   });
 
@@ -170,7 +190,17 @@ class GptMarkdown extends StatelessWidget {
   /// The code builder.
   final CodeBlockBuilder? codeBuilder;
 
-  /// The source tag builder.
+  /// Builds the span for a `[1]` citation chip, replacing the default chip.
+  ///
+  /// Wins over [sourceTagBuilder] when both are set.
+  final InlineSourceTagBuilder? inlineSourceTagBuilder;
+
+  /// Builds a widget for a `[1]` citation chip.
+  ///
+  /// Used only when [inlineSourceTagBuilder] is null. The result is wrapped
+  /// in a [WidgetSpan], and it is handed an empty [TextStyle] rather than
+  /// the resolved one — both kept so 1.2.x code behaves unchanged.
+  @Deprecated('Use inlineSourceTagBuilder. Will be removed in 2.0.0.')
   final SourceTagBuilder? sourceTagBuilder;
 
   /// Host-defined inline regions the parser must not look inside.
@@ -202,7 +232,20 @@ class GptMarkdown extends StatelessWidget {
   /// depend on the code itself.
   final InlineCodeBuilder? inlineCodeBuilder;
 
-  /// The link builder.
+  /// Builds the span for a link, replacing the default rendering.
+  ///
+  /// Wins over [linkBuilder] when both are set. Returning a span rather
+  /// than a widget keeps the link on the text baseline, wrapping across
+  /// lines and selectable — none of which a [WidgetSpan] can do.
+  final InlineLinkBuilder? inlineLinkBuilder;
+
+  /// Builds a widget for a link.
+  ///
+  /// Used only when [inlineLinkBuilder] is null. The result is wrapped in a
+  /// [WidgetSpan], which is the shape that made this hook a problem —
+  /// prefer [inlineLinkBuilder], or [styleSheet]'s [LinkStyle] when you
+  /// only want to restyle.
+  @Deprecated('Use inlineLinkBuilder. Will be removed in 2.0.0.')
   final LinkBuilder? linkBuilder;
 
   /// The image builder.
@@ -220,58 +263,105 @@ class GptMarkdown extends StatelessWidget {
   /// Incremental rendering for streaming content: the document is split into
   /// top-level segments, each rendered as its own cached widget, so appending
   /// text only rebuilds and re-lays-out the tail segment instead of the whole
-  /// message. Recommended for chat UIs that re-render while a reply streams.
-  /// Ignored when custom [components]/[inlineComponents] are provided (those
-  /// force the legacy single-text pipeline).
+  /// message.
+  ///
+  /// Deprecated because plusparse is now always the default, and
+  /// `incremental: false` is the only remaining way to opt back into the
+  /// legacy regex parser. Passing `false` still works, at the cost of the
+  /// segment cache — each text change re-parses and re-lays-out the whole
+  /// message rather than its tail segment — and of [blockComponents], which
+  /// only the plusparse path parses and renders. An animating [animation]
+  /// overrides it, since the span-level streaming reveal exists only on that
+  /// path. The migration is to delete the argument.
+  ///
+  /// ```dart
+  /// // Before
+  /// GptMarkdown(text, incremental: true)
+  ///
+  /// // After
+  /// GptMarkdown(text)
+  /// ```
+  ///
+  /// Ignored when [components] or [inlineComponents] are given, since those
+  /// select the legacy pipeline on their own.
+  @Deprecated(
+    'Remove this argument; plusparse is the default. '
+    'Will be removed in 2.0.0.',
+  )
   final bool incremental;
 
   /// The table builder.
   final TableBuilder? tableBuilder;
 
-  /// The list of components.
-  ///  ```dart
-  /// List<MarkdownComponent> components = [
-  ///   CodeBlockMd(),
-  ///   NewLines(),
-  ///   BlockQuote(),
-  ///   ImageMd(),
-  ///   ATagMd(),
-  ///   TableMd(),
-  ///   HTag(),
-  ///   UnOrderedList(),
-  ///   OrderedList(),
-  ///   RadioButtonMd(),
-  ///   CheckBoxMd(),
-  ///   HrLine(),
-  ///   StrikeMd(),
-  ///   BoldMd(),
-  ///   ItalicMd(),
-  ///   LatexMath(),
-  ///   LatexMathMultiLine(),
-  ///   HighlightedText(),
-  ///   GenUiMd(),
-  ///   SourceTag(),
-  ///   IndentMd(),
-  /// ];
+  /// The list of block-level components for the legacy regex pipeline.
+  ///
+  /// Deprecated because passing this list — even an empty one — silently
+  /// switches the whole widget to the legacy regex parser: [blockComponents]
+  /// is ignored, and the incremental segment cache, the span-level streaming
+  /// reveal and lazy sliver rendering are all disabled, so each text change
+  /// re-parses and re-lays-out the whole message, an animating [animation]
+  /// falls back to re-slicing the source text, and [SliverGptMarkdown] puts
+  /// the document in one `SliverToBoxAdapter`.
+  ///
+  /// ```dart
+  /// // Before
+  /// GptMarkdown(
+  ///   text,
+  ///   components: [CalloutMd(), ...MarkdownComponent.globalComponents],
+  /// )
+  ///
+  /// // After
+  /// GptMarkdown(
+  ///   text,
+  ///   blockComponents: [
+  ///     MarkdownBlockComponent(
+  ///       syntax: const FencedBlockSyntax(
+  ///         type: 'callout',
+  ///         opening: ':::callout',
+  ///       ),
+  ///       builder: (context, node, config) => CalloutBox(body: node.body),
+  ///     ),
+  ///   ],
+  /// )
   /// ```
+  ///
+  /// Inline syntaxes move to [inlinePatterns] or [inlineDirectives], both of
+  /// which work on either pipeline.
+  @Deprecated('Use blockComponents. Will be removed in 2.0.0.')
   final List<MarkdownComponent>? components;
 
-  /// The list of inline components.
-  ///  ```dart
-  /// List<MarkdownComponent> inlineComponents = [
-  ///   GenUiMd(),
-  ///   ImageMd(),
-  ///   ATagMd(),
-  ///   TableMd(),
-  ///   StrikeMd(),
-  ///   BoldMd(),
-  ///   ItalicMd(),
-  ///   LatexMath(),
-  ///   LatexMathMultiLine(),
-  ///   HighlightedText(),
-  ///   SourceTag(),
-  /// ];
+  /// The list of inline components for the legacy regex pipeline.
+  ///
+  /// Deprecated for the same reason as [components]: passing this list — even
+  /// an empty one — silently switches the whole widget to the legacy regex
+  /// parser, which ignores [blockComponents] and has no incremental segment
+  /// cache, no span-level streaming reveal and no lazy sliver rendering.
+  ///
+  /// ```dart
+  /// // Before
+  /// GptMarkdown(
+  ///   text,
+  ///   inlineComponents: [MentionMd(), ...MarkdownComponent.inlineComponents],
+  /// )
+  ///
+  /// // After
+  /// GptMarkdown(
+  ///   text,
+  ///   inlinePatterns: [
+  ///     InlinePattern(
+  ///       pattern: RegExp(r'@[A-Za-z0-9_]+'),
+  ///       builder: (context, match, style) =>
+  ///           TextSpan(text: match.group(0), style: style),
+  ///     ),
+  ///   ],
+  /// )
   /// ```
+  ///
+  /// Use [inlineDirectives] where the host has already wrapped the region in
+  /// sentinels and the parser must not look inside it.
+  @Deprecated(
+    'Use inlinePatterns or inlineDirectives. Will be removed in 2.0.0.',
+  )
   final List<MarkdownComponent>? inlineComponents;
 
   /// App-specific inline syntaxes rendered alongside Markdown.
@@ -298,6 +388,9 @@ class GptMarkdown extends StatelessWidget {
   /// it: a [TextSpan] stays selectable, wraps across lines, and sits on the
   /// surrounding baseline.
   final List<InlinePattern>? inlinePatterns;
+
+  /// Modern block syntax extensions. Legacy component lists take precedence.
+  final List<MarkdownBlockComponent>? blockComponents;
 
   /// How inline `code` is drawn, for this widget only.
   ///
@@ -504,36 +597,6 @@ class GptMarkdown extends StatelessWidget {
 
   /// Builds the document for [source], with no reveal involved.
   Widget _buildDocument(BuildContext context, String source) {
-    String tex = source.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
-    // Before anything reads the text as Markdown, and before either pipeline
-    // sees it, so a payload cannot be parsed, split or truncated.
-    final directives = inlineDirectives;
-    if (directives != null && directives.isNotEmpty) {
-      tex = maskInlineDirectives(tex, directives);
-    }
-    var dollarsAreMath = false;
-    if (useDollarSignsForLatex) {
-      tex = tex.replaceAllMapped(
-        RegExp(r"(?<!\\)\$\$(.*?)(?<!\\)\$\$", dotAll: true),
-        (match) => "\\[${match[1] ?? ""}\\]",
-      );
-      if (!tex.contains(r"\(")) {
-        // Same condition as the rewrite below: once a native `\(` appears,
-        // a single `$` can never become maths, so it must not be held either.
-        dollarsAreMath = true;
-        tex = tex.replaceAllMapped(
-          RegExp(r"(?<!\\)\$(.*?)(?<!\\)\$"),
-          (match) => "\\(${match[1] ?? ""}\\)",
-        );
-        tex = tex.splitMapJoin(
-          RegExp(r"\[.*?\]|\(.*?\)"),
-          onNonMatch: (p0) {
-            return p0.replaceAll("\\\$", "\$");
-          },
-        );
-      }
-    }
-    // tex = _removeExtraLinesInsideBlockLatex(tex);
     final config = GptMarkdownConfig(
       textDirection: textDirection,
       style: style,
@@ -546,11 +609,15 @@ class GptMarkdown extends StatelessWidget {
       codeBuilder: codeBuilder,
       maxLines: maxLines,
       overflow: overflow,
+      inlineSourceTagBuilder: inlineSourceTagBuilder,
+      // ignore: deprecated_member_use_from_same_package
       sourceTagBuilder: sourceTagBuilder,
       inlineDirectives: inlineDirectives,
       inlineCodeBuilder: inlineCodeBuilder,
       // ignore: deprecated_member_use_from_same_package
       highlightBuilder: highlightBuilder,
+      inlineLinkBuilder: inlineLinkBuilder,
+      // ignore: deprecated_member_use_from_same_package
       linkBuilder: linkBuilder,
       imageBuilder: imageBuilder,
       orderedListBuilder: orderedListBuilder,
@@ -558,6 +625,7 @@ class GptMarkdown extends StatelessWidget {
       components: components,
       inlineComponents: inlineComponents,
       inlinePatterns: inlinePatterns,
+      blockComponents: blockComponents,
       inlineCodeStyle: inlineCodeStyle,
       styleSheet: styleSheet,
       blockQuoteBuilder: blockQuoteBuilder,
@@ -574,12 +642,29 @@ class GptMarkdown extends StatelessWidget {
       tableBuilder: tableBuilder,
     );
 
+    final normalized = _normalizeMarkdownSource(
+      source,
+      useDollarSignsForLatex,
+      inlineDirectives,
+      blockRegistry:
+          components == null &&
+                  inlineComponents == null &&
+                  (incremental || _usesSpanReveal)
+              ? config.blockRegistry
+              : null,
+    );
+    final tex = normalized.text;
+    final dollarsAreMath = normalized.dollarsAreMath;
+
     // An explicit `textScaler` has to reach the inline widgets too: they
     // compensate for the paragraph's scaling of their box, and to do that they
     // need the same scaler the paragraph uses. Publishing it through
     // `MediaQuery` keeps one source of truth.
     final scaler = textScaler;
     Widget wrap(Widget child) {
+      // Block Rows/Columns resolve start alignment from the inherited direction,
+      // independently of Text.rich's explicit textDirection. Keep both in sync.
+      child = Directionality(textDirection: textDirection, child: child);
       if (scaler == null) {
         return child;
       }
@@ -618,4 +703,57 @@ class GptMarkdown extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Shared source preparation for compact and sliver rendering.
+({String text, bool dollarsAreMath}) _normalizeMarkdownSource(
+  String source,
+  bool useDollarSignsForLatex,
+  List<InlineDirective>? inlineDirectives, {
+  MarkdownBlockRegistry? blockRegistry,
+}) {
+  String tex =
+      (source.contains('\r')
+              ? source.replaceAll('\r\n', '\n').replaceAll('\r', '\n')
+              : source)
+          .trim();
+  // Before anything reads the text as Markdown, and before either pipeline
+  // sees it, so a payload cannot be parsed, split or truncated.
+  final directives = inlineDirectives;
+  if (directives != null && directives.isNotEmpty) {
+    tex = maskInlineDirectives(tex, directives, blockRegistry: blockRegistry);
+  }
+  var dollarsAreMath = false;
+  if (useDollarSignsForLatex) {
+    String rewrite(String value) {
+      dollarsAreMath = false;
+      value = value.replaceAllMapped(
+        RegExp(r"(?<!\\)\$\$(.*?)(?<!\\)\$\$", dotAll: true),
+        (match) => "\\[${match[1] ?? ""}\\]",
+      );
+      if (!value.contains(r"\(")) {
+        // Same condition as the rewrite below: once a native `\(` appears,
+        // a single `$` can never become maths, so it must not be held either.
+        dollarsAreMath = true;
+        value = value.replaceAllMapped(
+          RegExp(r"(?<!\\)\$(.*?)(?<!\\)\$"),
+          (match) => "\\(${match[1] ?? ""}\\)",
+        );
+        value = value.splitMapJoin(
+          RegExp(r"\[.*?\]|\(.*?\)"),
+          onNonMatch: (p0) {
+            return p0.replaceAll("\\\$", "\$");
+          },
+        );
+      }
+      return value;
+    }
+
+    tex =
+        blockRegistry == null
+            ? rewrite(tex)
+            : _outsideCustomBlocks(tex, blockRegistry, rewrite);
+  }
+  // tex = _removeExtraLinesInsideBlockLatex(tex);
+  return (text: tex, dollarsAreMath: dollarsAreMath);
 }

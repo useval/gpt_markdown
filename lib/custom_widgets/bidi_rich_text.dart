@@ -24,10 +24,14 @@ library;
 
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'inline_code.dart';
+import '../streaming/reveal_spans.dart';
+import 'inline_tap.dart';
 
 /// Strong right-to-left scripts: Hebrew, Arabic, Syriac, Thaana, NKo, Samaritan
 /// and the Arabic presentation forms.
@@ -113,6 +117,7 @@ class BidiRichText extends RichText {
     required super.text,
     this.bidiEnabled = true,
     this.inlineCodeRuns = const <InlineCodeRun>[],
+    this.inlineTapRuns = const <InlineTapRun>[],
     super.textAlign,
     super.textDirection,
     super.softWrap,
@@ -137,12 +142,16 @@ class BidiRichText extends RichText {
   /// Inline-code runs to paint chips behind. See [InlineCodeDecoration].
   final List<InlineCodeRun> inlineCodeRuns;
 
+  /// Tap targets resolved by text range. See [InlineTapTargets].
+  final List<InlineTapRun> inlineTapRuns;
+
   @override
   RenderParagraph createRenderObject(BuildContext context) {
     return RenderBidiParagraph(
       text,
       bidiEnabled: bidiEnabled,
       inlineCodeRuns: inlineCodeRuns,
+      inlineTapRuns: inlineTapRuns,
       textAlign: textAlign,
       textDirection: textDirection ?? Directionality.of(context),
       softWrap: softWrap,
@@ -166,16 +175,19 @@ class BidiRichText extends RichText {
     super.updateRenderObject(context, renderObject);
     (renderObject as RenderBidiParagraph)
       ..bidiEnabled = bidiEnabled
-      ..inlineCodeRuns = inlineCodeRuns;
+      ..inlineCodeRuns = inlineCodeRuns
+      ..inlineTapRuns = inlineTapRuns;
   }
 }
 
 /// The render object behind [BidiRichText].
-class RenderBidiParagraph extends RenderParagraph with InlineCodeDecoration {
+class RenderBidiParagraph extends RenderParagraph
+    with InlineCodeDecoration, InlineTapTargets {
   RenderBidiParagraph(
     super.text, {
     bool bidiEnabled = true,
     List<InlineCodeRun> inlineCodeRuns = const <InlineCodeRun>[],
+    List<InlineTapRun> inlineTapRuns = const <InlineTapRun>[],
     super.textAlign,
     required super.textDirection,
     super.softWrap,
@@ -191,6 +203,7 @@ class RenderBidiParagraph extends RenderParagraph with InlineCodeDecoration {
     super.selectionColor,
   }) : _bidiEnabled = bidiEnabled {
     this.inlineCodeRuns = inlineCodeRuns;
+    this.inlineTapRuns = inlineTapRuns;
   }
 
   bool _bidiEnabled;
@@ -440,12 +453,13 @@ class RenderBidiParagraph extends RenderParagraph with InlineCodeDecoration {
 ///
 /// It resolves the ambient [DefaultTextStyle], bold-text and text-scale
 /// accessibility settings, and selection registrar the same way [Text] does.
-class BidiText extends StatelessWidget {
+class BidiText extends StatefulWidget {
   const BidiText(
     this.textSpan, {
     super.key,
     this.bidiEnabled = true,
     this.inlineCodeRuns = const <InlineCodeRun>[],
+    this.inlineTapRuns = const <InlineTapRun>[],
     this.style,
     this.textAlign,
     this.textDirection,
@@ -468,6 +482,9 @@ class BidiText extends StatelessWidget {
   /// Inline-code runs to paint chips behind, in [textSpan]'s own offsets.
   final List<InlineCodeRun> inlineCodeRuns;
 
+  /// Tap targets, in [textSpan]'s own offsets. See [collectInlineTapRuns].
+  final List<InlineTapRun> inlineTapRuns;
+
   final TextStyle? style;
   final TextAlign? textAlign;
   final TextDirection? textDirection;
@@ -482,10 +499,284 @@ class BidiText extends StatelessWidget {
   final Color? selectionColor;
 
   @override
+  State<BidiText> createState() => _BidiTextState();
+}
+
+class _BidiTextState extends State<BidiText> {
+  /// Recognizers handed to the paragraph's tappable leaves.
+  ///
+  /// [InlineSpan] does not manage a recognizer's lifetime, and these spans are
+  /// regenerated on every theme or config change, so creating one per link per
+  /// generate would leak one per rebuild. This state owns them and disposes
+  /// them. A leaf is armed only so the paragraph reports a link to the
+  /// accessibility tree and shows a click cursor — the tap itself is resolved
+  /// by range, which a recognizer structurally cannot do for a wrapper span or
+  /// a placeholder.
+  /// Recognizers armed onto tappable leaves in the current build.
+  ///
+  /// A fresh one per leaf per build, never re-pointed. Recycling a recognizer
+  /// and reassigning its `onTap` looks like an obvious saving and is a
+  /// wrong-url bug: a gesture that began on one link holds a reference to that
+  /// recognizer object, so if an unrelated rebuild lands mid-gesture and hands
+  /// the same object to a different link, releasing the pointer opens the
+  /// wrong url. Pinned by
+  /// `test/regression/inline_tap_recognizer_identity_test.dart`.
+  List<TapGestureRecognizer> _armed = <TapGestureRecognizer>[];
+
+  /// Previous builds' recognizers, newest generation first.
+  ///
+  /// A recognizer cannot be disposed while a gesture still references it, and
+  /// the gesture that outlives a rebuild is exactly the case above. Retiring
+  /// is therefore by GENERATION, not by object count: trimming a flat list at
+  /// a fixed size frees the immediately previous build's recognizers as soon
+  /// as one paragraph holds more leaves than the cap — precisely the ones that
+  /// must survive.
+  final List<List<TapGestureRecognizer>> _retired =
+      <List<TapGestureRecognizer>>[];
+
+  /// How many past builds to keep before freeing.
+  ///
+  /// A gesture spans a pointer-down to a pointer-up. Two intervening rebuilds
+  /// is already generous for that window, and the cost of being wrong is a
+  /// crash rather than a leak, so this errs high.
+  static const int _retainedGenerations = 4;
+
+  final GlobalKey _paragraphKey = GlobalKey();
+
+  /// The hovered run's full range. Keying on the start alone made two
+  /// nested runs that share a start indistinguishable, so hovering the inner
+  /// one restyled the outer one too.
+  (int, int)? _hoveredRun;
+
+  @override
+  void didUpdateWidget(BidiText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The offsets `_hoveredRunStart` refers to belong to the previous text. A
+    // new document relays out under the same pointer, so without this a link
+    // stays painted hovered — and the paragraph keeps a click cursor — over
+    // whatever now happens to sit at that offset.
+    if (_hoveredRun != null &&
+        !listEquals(oldWidget.inlineTapRuns, widget.inlineTapRuns)) {
+      _hoveredRun = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final recognizer in _armed) {
+      recognizer.dispose();
+    }
+    for (final generation in _retired) {
+      for (final recognizer in generation) {
+        recognizer.dispose();
+      }
+    }
+    super.dispose();
+  }
+
+  TapGestureRecognizer _recognizer(VoidCallback onTap) {
+    final recognizer = InlineTapLeafRecognizer()..onTap = onTap;
+    _armed.add(recognizer);
+    return recognizer;
+  }
+
+  void _updateHover(Offset localPosition) {
+    final object = _paragraphKey.currentContext?.findRenderObject();
+    if (object is! RenderBidiParagraph) {
+      return;
+    }
+    final run = object.runAt(localPosition);
+    final range = run == null ? null : (run.start, run.end);
+    if (range == _hoveredRun) {
+      return;
+    }
+    setState(() => _hoveredRun = range);
+  }
+
+  /// Rebuilds [span] keeping its subclass.
+  ///
+  /// Dropping the subclass is not cosmetic: [collectInlineTapRuns] and
+  /// [collectInlineCodeRuns] match on it, so a rebuilt plain [TextSpan] makes
+  /// the run vanish, `runAt` returns null, and hover oscillates forever.
+  TextSpan _rebuild(
+    TextSpan span, {
+    required TextStyle? style,
+    required List<InlineSpan>? children,
+    required GestureRecognizer? recognizer,
+  }) {
+    // `TextSpan`'s constructor derives `SystemMouseCursors.click` from a
+    // non-null recognizer, so handing the already-resolved `defer` back in
+    // would suppress it.
+    final cursor =
+        span.mouseCursor == MouseCursor.defer ? null : span.mouseCursor;
+    final text = span.text;
+    if (span is LinkTextSpan) {
+      return text != null
+          ? LinkTextSpan(
+            text: text,
+            url: span.url,
+            linkStyle: span.linkStyle,
+            onTap: span.onTap,
+            hoverStyle: span.hoverStyle,
+            style: style,
+            recognizer: recognizer,
+            mouseCursor: cursor,
+            semanticsLabel: span.semanticsLabel,
+          )
+          : LinkTextSpan.wrapping(
+            children: children ?? const <InlineSpan>[],
+            url: span.url,
+            linkStyle: span.linkStyle,
+            onTap: span.onTap,
+            hoverStyle: span.hoverStyle,
+            style: style,
+            mouseCursor: cursor,
+          );
+    }
+    if (span is TappableTextSpan) {
+      return text != null
+          ? TappableTextSpan(
+            text: text,
+            onTap: span.onTap,
+            hoverStyle: span.hoverStyle,
+            style: style,
+            recognizer: recognizer,
+            mouseCursor: cursor,
+            semanticsLabel: span.semanticsLabel,
+          )
+          : TappableTextSpan.wrapping(
+            children: children ?? const <InlineSpan>[],
+            onTap: span.onTap,
+            hoverStyle: span.hoverStyle,
+            style: style,
+            mouseCursor: cursor,
+          );
+    }
+    if (span is RevealableSpan) {
+      // Carries the reveal's own rebuild hook. Downgrading it to a plain
+      // TextSpan loses that hook, so a document that contains both a link and
+      // an animating block stops revealing the block.
+      return RevealableSpan(
+        content: span.content,
+        rebuild: span.rebuild,
+        children: children ?? const <InlineSpan>[],
+        style: style,
+      );
+    }
+    if (span is CodeTextSpan) {
+      return text != null
+          ? CodeTextSpan(
+            text: text,
+            codeStyle: span.codeStyle,
+            style: style,
+            recognizer: recognizer,
+            mouseCursor: cursor,
+            semanticsLabel: span.semanticsLabel,
+          )
+          : CodeTextSpan.revealing(
+            children: children ?? const <InlineSpan>[],
+            codeStyle: span.codeStyle,
+            style: style,
+          );
+    }
+    return TextSpan(
+      text: text,
+      children: children,
+      style: style,
+      recognizer: recognizer,
+      mouseCursor: cursor,
+      // Carried, not dropped: a consumer's `InlinePattern` can put hover
+      // callbacks on its span, and losing them here would break it only in
+      // paragraphs that happen to contain a link.
+      onEnter: span.onEnter,
+      onExit: span.onExit,
+      semanticsLabel: span.semanticsLabel,
+      semanticsIdentifier: span.semanticsIdentifier,
+      locale: span.locale,
+      spellOut: span.spellOut,
+    );
+  }
+
+  /// One walk that arms tappable leaves and applies the hovered run's style.
+  ///
+  /// Offsets are counted exactly as [collectInlineTapRuns] counts them, so the
+  /// run start recorded here is the one `runAt` reports.
+  InlineSpan _prepare(InlineSpan root) {
+    // This build's recognizers are new objects; the last build's are retired,
+    // not freed, because a gesture may still hold one.
+    if (_armed.isNotEmpty) {
+      _retired.insert(0, _armed);
+      _armed = <TapGestureRecognizer>[];
+    }
+    while (_retired.length > _retainedGenerations) {
+      for (final recognizer in _retired.removeLast()) {
+        recognizer.dispose();
+      }
+    }
+
+    var offset = 0;
+
+    InlineSpan visit(InlineSpan span, TappableTextSpan? owner, int ownerStart) {
+      if (span is TextSpan) {
+        final start = offset;
+        final isOwner = span is TappableTextSpan;
+        final effectiveOwner = isOwner ? span : owner;
+        final effectiveStart = isOwner ? start : ownerStart;
+        offset += span.text?.length ?? 0;
+
+        final children = span.children;
+        final newChildren =
+            children == null
+                ? null
+                : <InlineSpan>[
+                  for (final child in children)
+                    visit(child, effectiveOwner, effectiveStart),
+                ];
+
+        final onTap = effectiveOwner?.onTap;
+        var recognizer = span.recognizer;
+        if (recognizer == null &&
+            onTap != null &&
+            (span.text?.isNotEmpty ?? false)) {
+          recognizer = _recognizer(onTap);
+        }
+
+        final hoverStyle =
+            effectiveOwner != null &&
+                    _hoveredRun != null &&
+                    effectiveStart == _hoveredRun!.$1 &&
+                    offset == _hoveredRun!.$2
+                ? effectiveOwner.hoverStyle
+                : null;
+        final style =
+            hoverStyle == null
+                ? span.style
+                : (span.style ?? const TextStyle()).merge(hoverStyle);
+
+        return _rebuild(
+          span,
+          style: style,
+          children: newChildren,
+          recognizer: recognizer,
+        );
+      }
+      if (span is PlaceholderSpan) {
+        offset += 1;
+        return span;
+      }
+      offset += span.toPlainText(includePlaceholders: true).length;
+      return span;
+    }
+
+    return visit(root, null, -1);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final style = widget.style;
     final defaultTextStyle = DefaultTextStyle.of(context);
     var effectiveTextStyle = style;
-    if (style == null || style!.inherit) {
+    if (style == null || style.inherit) {
       effectiveTextStyle = defaultTextStyle.style.merge(style);
     }
     if (MediaQuery.boldTextOf(context)) {
@@ -494,33 +785,57 @@ class BidiText extends StatelessWidget {
       );
     }
     final registrar = SelectionContainer.maybeOf(context);
-    return BidiRichText(
-      bidiEnabled: bidiEnabled,
-      inlineCodeRuns: inlineCodeRuns,
+    final runs = widget.inlineTapRuns;
+    final span = runs.isEmpty ? widget.textSpan : _prepare(widget.textSpan);
+    final Widget rich = BidiRichText(
+      key: _paragraphKey,
+      bidiEnabled: widget.bidiEnabled,
+      inlineCodeRuns: widget.inlineCodeRuns,
+      inlineTapRuns: runs,
       text: TextSpan(
         style: effectiveTextStyle,
-        locale: locale,
-        children: <InlineSpan>[textSpan],
+        locale: widget.locale,
+        children: <InlineSpan>[span],
       ),
-      textAlign: textAlign ?? defaultTextStyle.textAlign ?? TextAlign.start,
-      textDirection: textDirection,
-      locale: locale,
-      softWrap: softWrap ?? defaultTextStyle.softWrap,
+      textAlign:
+          widget.textAlign ?? defaultTextStyle.textAlign ?? TextAlign.start,
+      textDirection: widget.textDirection,
+      locale: widget.locale,
+      softWrap: widget.softWrap ?? defaultTextStyle.softWrap,
       overflow:
-          overflow ?? effectiveTextStyle?.overflow ?? defaultTextStyle.overflow,
-      textScaler: textScaler ?? MediaQuery.textScalerOf(context),
-      maxLines: maxLines ?? defaultTextStyle.maxLines,
-      strutStyle: strutStyle,
-      textWidthBasis: textWidthBasis ?? defaultTextStyle.textWidthBasis,
+          widget.overflow ??
+          effectiveTextStyle?.overflow ??
+          defaultTextStyle.overflow,
+      textScaler: widget.textScaler ?? MediaQuery.textScalerOf(context),
+      maxLines: widget.maxLines ?? defaultTextStyle.maxLines,
+      strutStyle: widget.strutStyle,
+      textWidthBasis: widget.textWidthBasis ?? defaultTextStyle.textWidthBasis,
       textHeightBehavior:
-          textHeightBehavior ??
+          widget.textHeightBehavior ??
           defaultTextStyle.textHeightBehavior ??
           DefaultTextHeightBehavior.maybeOf(context),
       selectionRegistrar: registrar,
       selectionColor:
-          selectionColor ??
+          widget.selectionColor ??
           DefaultSelectionStyle.of(context).selectionColor ??
           DefaultSelectionStyle.defaultColor,
+    );
+    if (runs.isEmpty) {
+      return rich;
+    }
+    // Hover is resolved here rather than per link: one region over the whole
+    // paragraph, and the run under the pointer restyles its own subtree. The
+    // old per-link `LinkButton` rebuilt a nested paragraph on every hover.
+    return MouseRegion(
+      cursor:
+          _hoveredRun == null ? MouseCursor.defer : SystemMouseCursors.click,
+      onHover: (event) => _updateHover(event.localPosition),
+      onExit: (_) {
+        if (_hoveredRun != null) {
+          setState(() => _hoveredRun = null);
+        }
+      },
+      child: rich,
     );
   }
 }

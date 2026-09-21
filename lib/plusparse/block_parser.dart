@@ -6,10 +6,15 @@
 library;
 
 import 'ast.dart';
+import 'block_syntax.dart';
 import 'inline_parser.dart';
 import 'scanner.dart';
 
-MdDocument parseDocument(String src, bool useDollar) {
+MdDocument parseDocument(
+  String src,
+  bool useDollar, [
+  MarkdownBlockRegistry? registry,
+]) {
   // Two full rewrites of the source, for a character most sources do not
   // contain. Checking first is one scan that usually ends in none.
   final normalized =
@@ -17,10 +22,14 @@ MdDocument parseDocument(String src, bool useDollar) {
           ? src.replaceAll('\r\n', '\n').replaceAll('\r', '\n')
           : src;
   final lines = normalized.split('\n');
-  return MdDocument(children: parseBlocks(lines, useDollar));
+  return MdDocument(children: parseBlocks(lines, useDollar, registry));
 }
 
-List<MdNode> parseBlocks(List<String> lines, bool useDollar) {
+List<MdNode> parseBlocks(
+  List<String> lines,
+  bool useDollar, [
+  MarkdownBlockRegistry? registry,
+]) {
   final out = <MdNode>[];
   final n = lines.length;
   var i = 0;
@@ -32,6 +41,13 @@ List<MdNode> parseBlocks(List<String> lines, bool useDollar) {
       continue;
     }
     final trimmed = raw.trimLeft();
+
+    final custom = registry?.match(lines, i);
+    if (custom != null) {
+      out.add(custom.node);
+      i = custom.endLine;
+      continue;
+    }
 
     // Fenced code block ```lang ... ```
     if (trimmed.startsWith('```')) {
@@ -128,7 +144,7 @@ List<MdNode> parseBlocks(List<String> lines, bool useDollar) {
         }
         i += 1;
       }
-      out.add(MdBlockQuote(children: parseBlocks(inner, useDollar)));
+      out.add(MdBlockQuote(children: parseBlocks(inner, useDollar, registry)));
       continue;
     }
 
@@ -165,13 +181,13 @@ List<MdNode> parseBlocks(List<String> lines, bool useDollar) {
 
     // Lists
     if (unorderedMarker(trimmed) != null) {
-      final r = _parseListInner(lines, i, false, useDollar);
+      final r = _parseListInner(lines, i, false, useDollar, registry);
       out.add(MdUnorderedList(items: r.items));
       i = r.next;
       continue;
     }
     if (orderedMarker(trimmed) != null) {
-      final r = _parseListInner(lines, i, true, useDollar);
+      final r = _parseListInner(lines, i, true, useDollar, registry);
       out.add(MdOrderedList(start: r.start, items: r.items));
       i = r.next;
       continue;
@@ -184,13 +200,21 @@ List<MdNode> parseBlocks(List<String> lines, bool useDollar) {
         break;
       }
       final t = lines[i].trimLeft();
-      if (_startsBlock(t)) {
+      if (_startsBlock(t) ||
+          (para.isNotEmpty && registry?.match(lines, i) != null)) {
         break;
       }
       para.add(t);
       i += 1;
     }
-    out.add(MdParagraph(children: parseInline(para.join(' '), useDollar)));
+    // Joined on the newline, not on a space. CommonMark folds a single
+    // newline inside a paragraph into a space, and this package has never
+    // done that: a model writes a list of bullet glyphs, or a run of short
+    // lines, and folding them produced one long wrapped line. Folding also
+    // swallowed the two breaks CommonMark does define — two trailing spaces
+    // and a trailing backslash — because the newline they mark was gone
+    // before the inline parser ran.
+    out.add(MdParagraph(children: parseInline(para.join('\n'), useDollar)));
   }
 
   return out;
@@ -219,6 +243,7 @@ bool _startsBlock(String t) {
   int start,
   bool ordered,
   bool useDollar,
+  MarkdownBlockRegistry? registry,
 ) {
   final n = lines.length;
   final base = indentWidth(lines[start]);
@@ -316,7 +341,7 @@ bool _startsBlock(String t) {
       children.addAll(parseInline(split.content, useDollar));
     }
     if (nested.isNotEmpty) {
-      children.addAll(parseBlocks(nested, useDollar));
+      children.addAll(parseBlocks(nested, useDollar, registry));
     }
     items.add(
       MdListItem(children: children, number: ordered ? split.number : null),

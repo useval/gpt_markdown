@@ -128,14 +128,15 @@ class _SettingsSheetState extends State<SettingsSheet> {
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: () => Navigator.of(context).pop(
-                    widget.config.copyWith(
-                      baseUrl: _baseUrl.text,
-                      apiKey: _apiKey.text,
-                      model: _model.text,
-                      systemPrompt: _system.text,
-                    ),
-                  ),
+                  onPressed:
+                      () => Navigator.of(context).pop(
+                        widget.config.copyWith(
+                          baseUrl: _baseUrl.text,
+                          apiKey: _apiKey.text,
+                          model: _model.text,
+                          systemPrompt: _system.text,
+                        ),
+                      ),
                   child: const Text('Save'),
                 ),
               ],

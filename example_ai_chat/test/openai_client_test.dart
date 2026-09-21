@@ -52,12 +52,13 @@ void main() {
     ]);
     addTearDown(() => server.close(force: true));
 
-    final deltas = await OpenAiClient()
-        .stream(
-          config: _configFor(server),
-          history: const [ChatMessage.user('hello')],
-        )
-        .toList();
+    final deltas =
+        await OpenAiClient()
+            .stream(
+              config: _configFor(server),
+              history: const [ChatMessage.user('hello')],
+            )
+            .toList();
 
     expect(deltas.join(), '# Hi\n\nrest');
   });
@@ -72,12 +73,13 @@ void main() {
     ]);
     addTearDown(() => server.close(force: true));
 
-    final deltas = await OpenAiClient()
-        .stream(
-          config: _configFor(server),
-          history: const [ChatMessage.user('hello')],
-        )
-        .toList();
+    final deltas =
+        await OpenAiClient()
+            .stream(
+              config: _configFor(server),
+              history: const [ChatMessage.user('hello')],
+            )
+            .toList();
 
     expect(deltas.join(), 'ab');
   });

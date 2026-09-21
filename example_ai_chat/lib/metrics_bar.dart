@@ -18,7 +18,8 @@ class MetricsBar extends StatelessWidget {
   final RenderMetrics metrics;
   final bool isStreaming;
 
-  static const bool _isDebug = !bool.fromEnvironment('dart.vm.product') &&
+  static const bool _isDebug =
+      !bool.fromEnvironment('dart.vm.product') &&
       !bool.fromEnvironment('dart.vm.profile');
 
   @override
@@ -95,7 +96,12 @@ class MetricsBar extends StatelessWidget {
     );
   }
 
-  Widget _stat(ThemeData theme, String label, String value, {bool warn = false}) {
+  Widget _stat(
+    ThemeData theme,
+    String label,
+    String value, {
+    bool warn = false,
+  }) {
     final color = warn ? theme.colorScheme.error : theme.colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.only(right: 20),
@@ -140,9 +146,10 @@ class _LiveDot extends StatelessWidget {
       height: 8,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: active
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+        color:
+            active
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
       ),
     );
   }

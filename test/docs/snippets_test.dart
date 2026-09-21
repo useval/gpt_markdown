@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 /// Compiles representative code from `README.md`, `docs/` and examples.
 ///
 /// Documentation rots silently: a renamed parameter or a changed builder
@@ -127,6 +129,8 @@ Widget docsCompile(BuildContext context) {
     latexBuilder: (context, tex, style, inline) => Text(tex),
     linkBuilder: (context, label, url, style) => const SizedBox(),
     sourceTagBuilder: (context, content, style) => Text(content),
+    inlineLinkBuilder: (link) => link.defaultSpan(),
+    inlineSourceTagBuilder: (tag) => tag.defaultSpan(),
     orderedListBuilder: (context, no, child, config) => child,
     unOrderedListBuilder: (context, child, config) => child,
     inlineCodeBuilder:

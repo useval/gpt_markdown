@@ -109,14 +109,13 @@ class _RequestsPageState extends State<RequestsPage> {
                         request.failed
                             ? Icons.error_outline
                             : Icons.check_circle_outline,
-                        color: request.failed
-                            ? theme.colorScheme.error
-                            : IssueColors.open,
+                        color:
+                            request.failed
+                                ? theme.colorScheme.error
+                                : IssueColors.open,
                       ),
                       title: Text(
-                        request.prompt.isEmpty
-                            ? '(no prompt)'
-                            : request.prompt,
+                        request.prompt.isEmpty ? '(no prompt)' : request.prompt,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -128,14 +127,16 @@ class _RequestsPageState extends State<RequestsPage> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => RequestDetailPage(
-                            api: widget.api,
-                            id: request.id,
+                      onTap:
+                          () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder:
+                                  (_) => RequestDetailPage(
+                                    api: widget.api,
+                                    id: request.id,
+                                  ),
+                            ),
                           ),
-                        ),
-                      ),
                     );
                   },
                 );
@@ -229,17 +230,19 @@ class _RequestDetailPageState extends State<RequestDetailPage> {
                           ),
                           if ((request.response ?? '').isNotEmpty)
                             FilledButton.icon(
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => NewIssuePage(
-                                    api: widget.api,
-                                    initialTitle: '',
-                                    markdown: request.response,
-                                    requestId: request.id,
-                                    initialLabels: const {'bug'},
+                              onPressed:
+                                  () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder:
+                                          (_) => NewIssuePage(
+                                            api: widget.api,
+                                            initialTitle: '',
+                                            markdown: request.response,
+                                            requestId: request.id,
+                                            initialLabels: const {'bug'},
+                                          ),
+                                    ),
                                   ),
-                                ),
-                              ),
                               style: FilledButton.styleFrom(
                                 backgroundColor: IssueColors.open,
                                 foregroundColor: Colors.white,

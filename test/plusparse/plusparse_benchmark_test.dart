@@ -6,8 +6,17 @@
 ///  - legacy: `MarkdownComponent.generate(...)` — the combined-regex
 ///    splitMapJoin pipeline that `MdWidget` runs on every build, producing an
 ///    `InlineSpan` tree.
-///  - plusparse: `Plusparse.parse(...)` — the single-pass character scanner,
-///    producing an `MdDocument` AST.
+///  - plusparse: `PlusparseRenderer.render(...)` — the single-pass character
+///    scanner plus the same span construction, so it also produces an
+///    `InlineSpan` tree.
+///
+/// Both sides must produce the SAME KIND of output for the ratio to mean
+/// anything. An earlier version of this benchmark timed `Plusparse.parse`,
+/// which stops at the AST and never builds spans, against a legacy call that
+/// did build them. That is unequal work, and it inflated every ratio here —
+/// the published figures said 15x to 47x where the like-for-like answer is
+/// about 4x to 12x. The span-count assertions below exist so that cannot
+/// happen again silently.
 ///
 /// Run with: flutter test test/plusparse/plusparse_benchmark_test.dart
 ///
@@ -20,6 +29,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 import 'sample_documents.dart';
+
+/// The words a reader would see, with placeholders and whitespace normalised.
+///
+/// A `WidgetSpan` contributes `U+FFFC` to `toPlainText`, and the two pipelines
+/// place different numbers of them, so they are stripped before comparing.
+String _visibleText(List<InlineSpan> spans) =>
+    TextSpan(children: spans)
+        .toPlainText(includeSemanticsLabels: false)
+        .replaceAll('\uFFFC', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
 
 /// Average microseconds per run of [action] over [iters] timed iterations.
 double _bench(void Function() action, {required int iters, int? warmup}) {
@@ -72,17 +92,38 @@ void main() {
         isNotEmpty,
         reason: 'legacy produced no spans for ${s.name}',
       );
+      final legacySpans = MarkdownComponent.generate(
+        context,
+        s.doc,
+        config,
+        true,
+      );
+      final newSpans = PlusparseRenderer.render(context, s.doc, config);
       expect(
-        Plusparse.parse(s.doc).children,
+        newSpans,
         isNotEmpty,
-        reason: 'plusparse produced no nodes for ${s.name}',
+        reason: 'plusparse produced no spans for ${s.name}',
+      );
+      // The ratio is only meaningful if both sides rendered the same content.
+      // Span *count* is not the test: the legacy pipeline wraps blocks and
+      // links in `WidgetSpan` placeholders, so it emits more spans for the
+      // same words. What must match is the text a reader would see.
+      expect(
+        _visibleText(newSpans),
+        _visibleText(legacySpans),
+        reason:
+            'the two pipelines rendered different text for ${s.name}, so '
+            'their timings are not comparable',
       );
 
       final legacyUs = _bench(
         () => MarkdownComponent.generate(context, s.doc, config, true),
         iters: s.iters,
       );
-      final newUs = _bench(() => Plusparse.parse(s.doc), iters: s.iters);
+      final newUs = _bench(
+        () => PlusparseRenderer.render(context, s.doc, config),
+        iters: s.iters,
+      );
 
       rows.add([
         s.name,
@@ -111,7 +152,7 @@ void main() {
     }, iters: 20);
     final newStreamUs = _bench(() {
       for (final prefix in prefixes) {
-        Plusparse.parse(prefix);
+        PlusparseRenderer.render(context, prefix, config);
       }
     }, iters: 20);
     rows.add([

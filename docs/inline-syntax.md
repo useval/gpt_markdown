@@ -63,10 +63,9 @@ Removing it is the better fix. A pre-processor works on raw Markdown and has to
 guess where the syntax ends and the URL begins — which is how
 `**https://x.com**` becomes a link whose href ends in `**`.
 
-A component runs *after* the surrounding syntax is consumed: `BoldMd` matches
-first, strips the `**`, and the autolinker only ever sees a clean URL. That
-class of bug cannot happen. The same holds for backticked URLs, headings and
-table cells.
+Autolinking runs *after* the surrounding syntax is consumed: the parser claims
+the `**` first and hands the autolinker a clean URL. That class of bug cannot
+happen. The same holds for backticked URLs, headings and table cells.
 
 ---
 
@@ -75,6 +74,15 @@ table cells.
 Chat apps layer their own inline syntax on top of Markdown. `#2959` is a
 channel in one product, a topic in another, an issue in a third — so the
 package supplies the mechanism and you supply the meaning.
+
+> [!IMPORTANT]
+> `InlinePattern` and `InlineDirective` are the current route, and they work on
+> both parsers. The older route — an `InlineMd` subclass passed to
+> `inlineComponents` — is deprecated in 1.3.0 and scheduled for removal in
+> 2.0.0. It still works, but passing `inlineComponents` switches the whole
+> widget to the legacy regex parser. See
+> [custom components](custom-components.md#legacy-extension-points-deprecated-in-130)
+> and [migration](../MIGRATION.md).
 
 ### A simple pattern
 
@@ -98,8 +106,28 @@ GptMarkdown(
 )
 ```
 
-Patterns are matched **ahead of** the built-in components, so a pattern always
-wins over the default reading of the same text.
+Patterns are matched **ahead of** the built-in components, so a pattern beats
+the default reading of the same text — a pattern whose regex covers `**GH-1**`,
+asterisks and all, renders your chip rather than bold. Fenced code, registered
+custom blocks and multi-line block maths are deliberate exceptions: their
+content is not Markdown, and a pattern reaching inside would rewrite source the
+author asked to see verbatim. Block maths is protected only while its closing
+`\]` sits on a later line than the opening `\[`. Inside a one-line `\[ … \]` a
+pattern still matches, and since the match is lifted out before parsing, the
+maths renderer is handed the placeholder — the equation and the chip are both
+lost.
+
+On the deprecated legacy pipeline precedence is leftmost-match instead — a
+built-in whose match starts at an earlier offset swallows the text, and the
+pattern wins only when both start at the same offset.
+
+> [!WARNING]
+> A single-backtick code span is **not** one of those protected regions. On the
+> default pipeline the match is lifted out of the source before the parser sees
+> the backticks, so with a `GH-\d+` pattern `` `GH-123` `` renders neither the
+> chip nor the literal text — the code chip shows the internal placeholder. The
+> legacy pipeline gets this case right, because the code span starts first and
+> claims the whole thing.
 
 ### Prefixed tokens
 
@@ -255,8 +283,9 @@ the markers after generation.
 
 During streaming, a directive is built only after its closing delimiter
 arrives. An incomplete directive stays literal rather than producing a
-half-built widget. Directives work with `incremental: true` and do not require
-custom `MarkdownComponent` lists.
+half-built widget. Directives are read on both parsers and never require you to
+pass a component list, so they do not force the legacy parser the way
+`inlineComponents` does.
 
 Do not use a directive for mentions, channels, emoji, or syntax that should
 participate in Markdown nesting. Those belong in `InlinePattern`.
@@ -272,18 +301,32 @@ link. A component declares where it applies.
 |---|---|
 | `content` | ordinary document and inline text |
 | `linkLabel` | inside the `label` of `[label](url)` |
-| `tableCell` | inside a table cell |
+| `tableCell` | inside a table cell — legacy pipeline only |
 | `heading` | inside a `#` heading |
+
+`linkLabel` and `heading` are set by both pipelines, `tableCell` by the legacy
+one alone. The default parser renders a cell with the scope the table inherited,
+which for a block-level table is `content` — so a pattern restricted to
+`{MarkdownScope.tableCell}` never fires there, and one restricted to
+`{MarkdownScope.content}` still does.
 
 `InlinePattern` defaults to `MarkdownComponent.allScopesExceptLinkLabel`.
 
 > [!WARNING]
-> That default matters. A link label is already rendered inside the link's own
-> `WidgetSpan`; a pattern returning a second one there produces a **nested
-> placeholder, which does not paint on iOS** — the text is simply invisible,
-> with no error.
+> That default matters whenever the link itself is a widget. The default link
+> rendering is a `LinkTextSpan` — real text — so a pattern nested in a label is
+> no longer nested in a placeholder. But a link *does* become a `WidgetSpan`
+> when you supply the deprecated `linkBuilder`, or when an `inlineLinkBuilder`
+> returns `details.asWidgetSpan(...)`. A pattern returning a second placeholder
+> inside one of those produces a **nested placeholder, which does not paint on
+> iOS** — the text is simply invisible, with no error.
 >
-> `[#design](https://example.com)` was blank on iOS for exactly this reason.
+> `[#design](https://example.com)` was blank on iOS for exactly this reason,
+> back when every link was a placeholder.
+>
+> The default is left as `allScopesExceptLinkLabel` regardless: changing it is
+> a behaviour change with its own tests
+> (`test/regression/nested_link_label_widget_test.dart`).
 
 Opt back in when your builder returns a `TextSpan`, which is safe to nest:
 
@@ -300,6 +343,9 @@ Restrict further when a token only makes sense in prose:
 ```dart
 scopes: const {MarkdownScope.content},
 ```
+
+That keeps the pattern out of headings and link labels. It does not keep it out
+of table cells on the default pipeline, where a cell is `content` already.
 
 ---
 

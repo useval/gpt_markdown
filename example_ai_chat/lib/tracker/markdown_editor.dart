@@ -48,14 +48,15 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
               border: Border.all(color: theme.dividerColor),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: widget.controller.text.trim().isEmpty
-                ? Text(
-                    'Nothing to preview',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                : GptMarkdown(widget.controller.text),
+            child:
+                widget.controller.text.trim().isEmpty
+                    ? Text(
+                      'Nothing to preview',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    )
+                    : GptMarkdown(widget.controller.text),
           )
         else
           TextField(
@@ -82,12 +83,14 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       child: TextButton(
         onPressed: onTap,
         style: TextButton.styleFrom(
-          backgroundColor: selected
-              ? theme.colorScheme.surfaceContainerHighest
-              : Colors.transparent,
-          foregroundColor: selected
-              ? theme.colorScheme.onSurface
-              : theme.colorScheme.onSurfaceVariant,
+          backgroundColor:
+              selected
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : Colors.transparent,
+          foregroundColor:
+              selected
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.onSurfaceVariant,
         ),
         child: Text(label),
       ),
@@ -118,7 +121,10 @@ class LabelPicker extends StatelessWidget {
           FilterChip(
             label: Text(label.name as String),
             selected: selected.contains(label.name),
-            avatar: CircleAvatar(backgroundColor: label.swatch as Color, radius: 7),
+            avatar: CircleAvatar(
+              backgroundColor: label.swatch as Color,
+              radius: 7,
+            ),
             onSelected: (on) {
               final next = Set<String>.from(selected);
               if (on) {

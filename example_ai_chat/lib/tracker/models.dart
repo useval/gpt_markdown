@@ -56,9 +56,10 @@ class Issue {
     author: json['author'] as String? ?? 'you',
     createdAt: DateTime.parse(json['created_at'] as String),
     updatedAt: DateTime.parse(json['updated_at'] as String),
-    closedAt: json['closed_at'] == null
-        ? null
-        : DateTime.parse(json['closed_at'] as String),
+    closedAt:
+        json['closed_at'] == null
+            ? null
+            : DateTime.parse(json['closed_at'] as String),
     requestId: json['request_id'] as int?,
     markdown: json['markdown'] as String?,
     labels: [

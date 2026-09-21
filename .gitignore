@@ -36,3 +36,31 @@ attached_assets/
 
 # Local fork checkout — has its own .git, never part of this package
 /packages/
+
+# Local performance benchmarks.
+#
+# They assert nothing, take minutes to run, and exist to compare revisions of
+# this package against each other — not to guard behaviour. Keeping them out of
+# `test/` keeps them out of `flutter test` and CI; keeping them untracked keeps
+# them out of the published archive. `docs/performance-baseline.md` records the
+# numbers they produce, and carries the harness inline so it can be recreated.
+/benchmark/
+
+# Golden comparison artefacts. Written on a failing run, never input.
+test/**/failures/
+
+# Internal competitor comparison. Kept locally; `docs/benchmark.md` is the
+# published version, without the third-party chat kit.
+docs/comparison.md
+
+# Blog drafts. Written here, published elsewhere — not part of the package.
+/block/
+
+# FVM. `.fvm/` is a machine-local checkout of the pinned SDK — a symlink into
+# ~/fvm plus a copy of the version — so it never belongs in the repository.
+#
+# `.fvmrc` is deliberately NOT ignored. It is the pin itself, and gen-UI needs
+# it: `val_3d` calls flutter_gpu APIs that changed in Flutter 3.46 and 3.47, so
+# this branch only builds on an SDK below that. Ignoring `.fvmrc` would leave
+# every other machine on whatever Flutter it happens to have.
+.fvm/

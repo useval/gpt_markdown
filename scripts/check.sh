@@ -15,9 +15,12 @@ if [[ "${1:-}" == "--fix" ]]; then
   FIX=1
 fi
 
-# The package plus the two apps that exercise it. The example is what pub.dev
-# shows; the widgetbook is the catalogue used to inspect components.
-PACKAGES=("." "example" "widgetbook")
+# The package plus the apps that exercise it. The example is what pub.dev
+# shows; the widgetbook is the catalogue used to inspect components;
+# example_ai_chat is the streaming harness. Each is a separate package and is
+# resolved and analysed in its own context — the root `analysis_options.yaml`
+# excludes them for exactly that reason.
+PACKAGES=("." "example" "example_ai_chat" "widgetbook")
 
 step() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 

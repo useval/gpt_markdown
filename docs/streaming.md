@@ -33,7 +33,6 @@ class _ReplyViewState extends State<ReplyView> {
   @override
   Widget build(BuildContext context) => GptMarkdown(
     _buffer.toString(),
-    incremental: true, // The default; written here to make the intent clear.
     animation: GptMarkdownAnimation.fade,
     blockAnimation: GptMarkdownBlockAnimation.fadeIn,
     isStreaming: _generating,
@@ -44,7 +43,12 @@ class _ReplyViewState extends State<ReplyView> {
 Keep the same widget identity while the reply grows. Giving every chunk a new
 key remounts the renderer and discards its reveal position and caches.
 
-## `incremental`
+## `incremental` (deprecated in 1.3.0)
+
+> [!IMPORTANT]
+> `incremental` is deprecated. plusparse is the default and passing the
+> argument is no longer necessary. It keeps working until 2.0.0; the migration
+> is to delete it. See [MIGRATION.md](../MIGRATION.md).
 
 `incremental` defaults to `true`. It selects the single-pass plusparse parser
 and a segment-cached renderer:
@@ -60,15 +64,20 @@ message
 The source is split into top-level segments at safe blank lines. A blank line
 inside fenced code or block maths is not a split point. When text is appended,
 unchanged segments keep their parsed spans and settled widget instances; only
-the tail is parsed, built and laid out again. The cost of an append therefore
-stays roughly flat instead of rising with the length of the answer.
+changed segments need parsing and rendering. Source normalization, prefix
+comparison, and segment reconciliation still depend on document size; a long
+unfinished block still grows in cost. During animation, segmentation and counts
+are reused and only the active reveal window receives tick notifications.
+
+For document-scale scrolling, use `SliverGptMarkdown` to create segment widgets
+on demand. See [rendering architecture](rendering-architecture.md) for extension
+registration, lazy rendering, and optional large-table/code policies.
 
 This optimization is useful even without animation:
 
 ```dart
 GptMarkdown(
   streamedText,
-  incremental: true,
   animation: GptMarkdownAnimation.none,
 )
 ```
@@ -78,7 +87,8 @@ There is no need to fake a disabled animation with an extremely high
 
 ### Legacy compatibility
 
-Set `incremental: false` to select the older combined-regex renderer. This is
+Set `incremental: false` to select the older combined-regex renderer — also
+deprecated, and the only reason to reach for it is to compare the two. This is
 primarily an escape hatch for compatibility testing.
 
 Supplying custom `components` or `inlineComponents` also selects the legacy
@@ -100,12 +110,25 @@ There are two separate improvements.
 The package benchmark compares the legacy recursive combined-regex parser with
 plusparse doing equivalent source-to-renderable-structure work:
 
-| Scenario | Recorded speedup |
+| Scenario | Measured speedup |
 |---|---:|
-| Dense inline syntax | about **20x** |
-| Typical AI reply | about **32x** |
-| Large 35 KB document | about **54x** |
-| Re-parsing streamed prefixes | about **69x** |
+| Dense inline syntax | about **4x** |
+| Typical AI reply | about **3.3x** |
+| Block-heavy document | about **3.4x** |
+| Large 35 KB document | about **6.4x** |
+| Re-parsing streamed prefixes | about **8.7x** |
+
+Measured on Flutter 3.44.2 / Dart 3.12.2, macOS.
+
+**These figures were wrong twice before, both times too high, and the reason is
+worth recording.** The first set (20x, 32x, 54x, 69x) predated the legacy
+parser caching its anchored dispatch regexes; a cheaper denominator shrank
+them to 15x, 23x, 36x and 48x. Those were still wrong, for a larger reason:
+the benchmark timed `Plusparse.parse`, which stops at the AST, against a
+legacy call that also built the `InlineSpan` tree. Unequal work inflates every
+ratio. The benchmark now runs `PlusparseRenderer.render` on both sides and
+asserts they produce the same visible text, so the comparison cannot drift
+apart again without the test failing.
 
 Run it locally:
 
@@ -115,9 +138,10 @@ flutter test test/plusparse/plusparse_benchmark_test.dart
 
 ### Streaming rebuild work
 
-The widget benchmark repeatedly appends 30 Markdown chunks. Segment caching
-recorded about **4.6x less total rebuild and layout work** than the single-text
-pipeline, while reusing every unchanged segment by identity:
+The widget benchmark repeatedly appends 30 Markdown chunks. Over three runs
+on Flutter 3.44.2 / Dart 3.12.2, segment caching recorded **5.6x to 6.1x**
+less total rebuild and layout work than the single-text pipeline, while
+reusing every unchanged segment by identity:
 
 ```bash
 flutter test test/plusparse/incremental_test.dart
@@ -163,7 +187,6 @@ The two axes compose:
 ```dart
 GptMarkdown(
   streamedText,
-  incremental: true,
   animation: GptMarkdownAnimation.blurIn,
   blockAnimation: GptMarkdownBlockAnimation.slideUp,
   isStreaming: generating,
@@ -232,6 +255,24 @@ that will never arrive.
 
 When `MediaQuery.disableAnimationsOf(context)` is true, content renders
 immediately and no reveal ticker runs. No additional configuration is needed.
+
+While text is still arriving, the incremental renderer publishes the document
+as one semantics node and excludes the blocks beneath it. The collapse does
+not depend on an assistive service being attached; only the label — the reply
+so far — does. A link does not report itself as a link mid-stream, and no
+heading or list item is separately navigable. The structure returns once the
+source has been quiet for 250 ms and any reveal in flight has landed, its head
+at the end of the text and its tail finished fading. Both have to hold: a
+reveal still catching up keeps the document collapsed past the quiet period.
+Otherwise every block on screen re-publishes its node on every frame, which is
+an announcement storm for anyone listening and, with an assistive service
+attached, about half the per-chunk cost of a long reply.
+
+The trigger is text observably arriving: a reveal in flight, or source that
+just grew by append. It is deliberately not `isStreaming`, which defaults to
+true and which hosts routinely leave on, and not the animation mode — the
+collapse happens with `animation: none` too. The legacy pipeline does not do
+this.
 
 Selection is not a stable interaction while a reveal is actively rebuilding
 its live spans. It is available normally once the reply settles. Links and

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gpt_markdown/custom_widgets/bidi_rich_text.dart';
-import 'package:gpt_markdown/custom_widgets/link_button.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 /// `MdWidget` caches the generated spans and only regenerates them when
@@ -50,7 +49,26 @@ Future<void> toggle(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-int linkCount(WidgetTester tester) => find.byType(LinkButton).evaluate().length;
+/// A link is a `LinkTextSpan` now, not a `LinkButton` widget.
+int linkCount(WidgetTester tester) {
+  var count = 0;
+  for (final rich in tester.widgetList<RichText>(
+    find.byWidgetPredicate((w) => w is RichText),
+  )) {
+    void walk(InlineSpan span) {
+      if (span is LinkTextSpan) {
+        count += 1;
+      }
+      span.visitDirectChildren((child) {
+        walk(child);
+        return true;
+      });
+    }
+
+    walk(rich.text);
+  }
+  return count;
+}
 
 /// A component with an obvious marker in its output.
 class _ShoutMd extends InlineMd {

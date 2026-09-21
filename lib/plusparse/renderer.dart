@@ -23,13 +23,38 @@ class PlusparseRenderer {
     // a no-op because a masked directive no longer holds its own delimiters.
     final directives = config.inlineDirectives;
     if (directives != null && directives.isNotEmpty) {
-      text = maskInlineDirectives(text, directives);
+      text = maskInlineDirectives(
+        text,
+        directives,
+        blockRegistry: config.blockRegistry,
+      );
     }
     final patterns = config.inlinePatterns;
     if (patterns != null && patterns.isNotEmpty) {
-      text = maskInlinePatterns(text, patterns);
+      text = maskInlinePatterns(
+        text,
+        patterns,
+        blockRegistry: config.blockRegistry,
+      );
     }
-    final doc = Plusparse.parse(text);
+    return renderDocument(
+      context,
+      Plusparse.parse(text, blockRegistry: config.blockRegistry),
+      config,
+      inlineOnly: inlineOnly,
+    );
+  }
+
+  /// Renders an existing syntax tree without parsing again. The document is
+  /// independent of Flutter themes; callers may retain it across style changes.
+  /// This does not mask inline extensions or normalize source; use [render]
+  /// when starting from raw Markdown with syntax-override patterns/directives.
+  static List<InlineSpan> renderDocument(
+    BuildContext context,
+    MdDocument doc,
+    GptMarkdownConfig config, {
+    bool inlineOnly = false,
+  }) {
     if (inlineOnly &&
         doc.children.length == 1 &&
         doc.children.first is MdParagraph) {
@@ -57,11 +82,14 @@ class PlusparseRenderer {
   );
 
   /// Replicates `BlockMd.span`'s wrapping of a block widget.
-  static InlineSpan _blockSpan(Widget child) => WidgetSpan(
+  static InlineSpan _blockSpan(Widget child) => BlockWidgetSpan(
     child: Row(
       mainAxisSize: MainAxisSize.min,
-      children: [Flexible(child: child)],
+      children: [
+        Flexible(child: MarkdownTextScaling.wrap(child, enabled: false)),
+      ],
     ),
+    bare: child,
     alignment: PlaceholderAlignment.baseline,
     baseline: TextBaseline.alphabetic,
   );
@@ -113,23 +141,36 @@ class PlusparseRenderer {
     GptMarkdownConfig config,
   ) {
     switch (node) {
+      case MdCustomBlock():
+        final builder = config.blockRenderers[node.type];
+        return [
+          _blockSpan(
+            builder == null
+                ? Text(node.body, style: config.style)
+                : builder(context, node, config),
+          ),
+        ];
       case MdParagraph(:final children):
         return _inlineSpans(context, children, config);
       case MdHeading(:final level, :final children):
-        return [
-          _revealableBlock(
-            content: _inlineSpans(context, children, config),
-            wrap:
-                (transform) => headingWidget(
-                  context,
-                  config,
-                  level: level,
-                  buildChildren:
-                      (conf) =>
-                          transform(_inlineSpans(context, children, conf)),
+        List<InlineSpan>? content;
+        InlineSpan heading(SpanTransform transform) {
+          final child = headingWidget(
+            context,
+            config,
+            level: level,
+            buildChildren:
+                (conf) => transform(
+                  content ??= _inlineSpans(context, children, conf),
                 ),
-          ),
-        ];
+          );
+          return RevealableSpan(
+            content: content!,
+            rebuild: heading,
+            children: [_blockSpan(child)],
+          );
+        }
+        return [heading(_identity)];
       case MdHorizontalRule():
         return [_blockSpan(hrWidget(context, config))];
       case MdCodeBlock(:final language, :final code, :final closed):
@@ -149,60 +190,68 @@ class PlusparseRenderer {
           _blockSpan(latexWidget(context, config, tex: tex, inline: false)),
         ];
       case MdBlockQuote(:final children):
-        // The quote owns its own span wrapper (the bar and the inset are part
-        // of it), so the revealable span is built around that rather than
-        // through `_revealableBlock`.
-        InlineSpan quote(SpanTransform transform) => RevealableSpan(
-          content: _blockSpans(context, children, config),
-          rebuild: quote,
-          children: [
-            blockQuoteSpan(
-              context,
-              config,
-              buildContent:
-                  (conf) => conf.getRich(
-                    TextSpan(
-                      children: transform(_blockSpans(context, children, conf)),
+        // Build once under the actual quote style. Counting an independently
+        // rendered copy used to double the work at EVERY nesting level.
+        List<InlineSpan>? content;
+        InlineSpan quote(SpanTransform transform) {
+          final child = blockQuoteSpan(
+            context,
+            config,
+            buildContent:
+                (conf) => conf.getRich(
+                  TextSpan(
+                    children: transform(
+                      content ??= _blockSpans(
+                        context,
+                        children,
+                        conf.copyWith(blocksRenderDirectly: false),
+                      ),
                     ),
                   ),
-            ),
-          ],
-        );
+                  ambientScaling: conf.blocksRenderDirectly,
+                ),
+          );
+          return RevealableSpan(
+            content: content!,
+            rebuild: quote,
+            children: [child],
+          );
+        }
         return [quote(_identity)];
       case MdCheckbox(:final checked, :final children):
+        // Built once and used for both the reveal's character count and the
+        // rendered label: `wrap` is handed the same `config` here, so a second
+        // build produced an identical list. Headings and block quotes do need
+        // two, because their `wrap` re-renders under a different config.
+        final labelSpans = _inlineSpans(context, children, config);
         return [
           _revealableBlock(
-            content: _inlineSpans(context, children, config),
+            content: labelSpans,
             wrap:
                 (transform) => checkboxWidget(
                   context,
                   config,
                   checked: checked,
                   label: config.getRich(
-                    TextSpan(
-                      children: transform(
-                        _inlineSpans(context, children, config),
-                      ),
-                    ),
+                    TextSpan(children: transform(labelSpans)),
+                    ambientScaling: config.blocksRenderDirectly,
                   ),
                 ),
           ),
         ];
       case MdRadio(:final selected, :final children):
+        final labelSpans = _inlineSpans(context, children, config);
         return [
           _revealableBlock(
-            content: _inlineSpans(context, children, config),
+            content: labelSpans,
             wrap:
                 (transform) => radioWidget(
                   context,
                   config,
                   selected: selected,
                   label: config.getRich(
-                    TextSpan(
-                      children: transform(
-                        _inlineSpans(context, children, config),
-                      ),
-                    ),
+                    TextSpan(children: transform(labelSpans)),
+                    ambientScaling: config.blocksRenderDirectly,
                   ),
                 ),
           ),
@@ -247,17 +296,27 @@ class PlusparseRenderer {
           // block node (the checkbox) with no inline content at all, and an
           // unconditional break put it on the line below its own bullet.
           if (inline.isNotEmpty) TextSpan(text: "\n", style: conf.style),
-          ..._blockSpans(context, nested, conf, separator: "\n"),
+          // These blocks remain placeholders in the item paragraph; only
+          // the outer item was lifted into the widget tree.
+          ..._blockSpans(
+            context,
+            nested,
+            conf.copyWith(blocksRenderDirectly: false),
+            separator: "\n",
+          ),
         ],
       ];
 
       final number = ordered ? "${item.number ?? (start + i)}" : null;
+      // Same config both times, so build the item body once.
+      final itemBody = body(config);
       spans.add(
         _revealableBlock(
-          content: body(config),
+          content: itemBody,
           wrap: (transform) {
             final itemChild = config.getRich(
-              TextSpan(children: transform(body(config))),
+              TextSpan(children: transform(itemBody)),
+              ambientScaling: config.blocksRenderDirectly,
             );
             return number == null
                 ? unorderedListItem(context, config, itemChild)
@@ -307,6 +366,21 @@ class PlusparseRenderer {
       };
     });
 
+    // A left-aligned cell no longer sits in an alignment box, so its text
+    // fills the column and its own `textAlign` is what places it. An unset
+    // `textAlign` already starts at the leading edge, which is exactly what
+    // that column wants — so only a caller who set one needs overriding, and
+    // the common table allocates nothing here. A centred or right-aligned
+    // column keeps its box and shrink-wraps inside it, where `textAlign` has
+    // nothing left to do.
+    final ambientAlign = config.textAlign;
+    final leftConfig =
+        (ambientAlign == null ||
+                ambientAlign == TextAlign.left ||
+                ambientAlign == TextAlign.start)
+            ? config
+            : config.copyWith(textAlign: TextAlign.left);
+
     final tableBuilder = config.tableBuilder;
     if (tableBuilder != null) {
       final customTable = List<CustomTableRow>.generate(rows.length, (index) {
@@ -336,77 +410,97 @@ class PlusparseRenderer {
             const TableStyle())
         .resolve(Theme.of(context).colorScheme);
     final tableRadius = tableStyle.borderRadius;
-    final controller = ScrollController();
     return _blockSpan(
-      Scrollbar(
-        controller: controller,
-        child: SingleChildScrollView(
-          controller: controller,
-          scrollDirection: Axis.horizontal,
-          child: Table(
-            textDirection: config.textDirection,
-            defaultColumnWidth: CustomTableColumnWidth(),
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            border: TableBorder.all(
-              width: tableStyle.borderWidth ?? 1,
-              color:
-                  tableStyle.borderColor ??
-                  Theme.of(context).colorScheme.onSurface,
-              borderRadius:
-                  tableRadius == null
-                      ? BorderRadius.zero
-                      : BorderRadius.all(tableRadius),
-            ),
-            children: List<TableRow>.generate(rows.length, (index) {
-              final row = rows[index];
-              return TableRow(
-                decoration:
-                    index == 0
-                        ? BoxDecoration(
-                          color:
-                              tableStyle.headerBackground ??
-                              Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHighest,
-                        )
-                        : null,
-                children: List<Widget>.generate(maxCol, (col) {
-                  final cell = col < row.cells.length ? row.cells[col] : null;
-                  if (cell == null || cell.content.isEmpty) {
-                    return const SizedBox();
-                  }
-                  Widget content = Padding(
-                    padding:
-                        tableStyle.cellPadding ??
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: config.getRich(
-                      TextSpan(
-                        children: _inlineSpans(context, cell.content, config),
-                      ),
-                    ),
-                  );
-                  switch (columnAlignments[col]) {
-                    case TextAlign.center:
-                      content = Center(child: content);
-                      break;
-                    case TextAlign.right:
-                      content = Align(
-                        alignment: Alignment.centerRight,
-                        child: content,
-                      );
-                      break;
-                    default:
-                      content = Align(
-                        alignment: Alignment.centerLeft,
-                        child: content,
-                      );
-                      break;
-                  }
-                  return content;
-                }),
-              );
-            }),
+      _TableViewport(
+        child: Table(
+          textDirection: config.textDirection,
+          defaultColumnWidth:
+              tableStyle.columnWidth ?? const CustomTableColumnWidth(),
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          border: TableBorder.all(
+            width: tableStyle.borderWidth ?? 1,
+            color:
+                tableStyle.borderColor ??
+                Theme.of(context).colorScheme.onSurface,
+            borderRadius:
+                tableRadius == null
+                    ? BorderRadius.zero
+                    : BorderRadius.all(tableRadius),
           ),
+          children: List<TableRow>.generate(rows.length, (index) {
+            final row = rows[index];
+            final isHeader = index == 0;
+            // Stripes count data rows, so the header never takes one and the
+            // first row under it is always unstriped.
+            final stripe = tableStyle.rowStripeColor;
+            return TableRow(
+              decoration:
+                  isHeader
+                      ? BoxDecoration(
+                        color:
+                            tableStyle.headerBackground ??
+                            Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                      )
+                      : (stripe != null && index.isEven)
+                      ? BoxDecoration(color: stripe)
+                      : null,
+              children: List<Widget>.generate(maxCol, (col) {
+                final cell = col < row.cells.length ? row.cells[col] : null;
+                if (cell == null || cell.content.isEmpty) {
+                  return const SizedBox();
+                }
+                final cellConfig =
+                    columnAlignments[col] == TextAlign.left
+                        ? leftConfig
+                        : config;
+                Widget content = Padding(
+                  padding:
+                      tableStyle.cellPadding ??
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: cellConfig.getRich(
+                    ambientScaling: config.blocksRenderDirectly,
+                    TextSpan(
+                      children: _inlineSpans(context, cell.content, cellConfig),
+                    ),
+                  ),
+                );
+                // Merged into the ambient style rather than replacing it, so
+                // setting only `fontWeight` keeps the document's family, size
+                // and colour. `getRich` renders the span as given and does not
+                // apply `config.style`, so the header style has to arrive as
+                // an inherited default rather than through the config.
+                final headerStyle = tableStyle.headerTextStyle;
+                if (isHeader && headerStyle != null) {
+                  content = DefaultTextStyle.merge(
+                    style: headerStyle,
+                    child: content,
+                  );
+                }
+                // Only a column that pulls its content off the leading edge
+                // needs an alignment box. A left-aligned cell is already
+                // flush left. The box is not free: content-sized columns lay
+                // every cell out twice, once to measure and once for real, so
+                // a redundant wrapper is two extra layouts per cell on top of
+                // one more render object for paint to walk.
+                switch (columnAlignments[col]) {
+                  case TextAlign.center:
+                    content = Center(child: content);
+                    break;
+                  case TextAlign.right:
+                    content = Align(
+                      alignment: Alignment.centerRight,
+                      child: content,
+                    );
+                    break;
+                  default:
+                    break;
+                }
+                return content;
+              }),
+            );
+          }),
         ),
       ),
     );
@@ -431,10 +525,11 @@ class PlusparseRenderer {
   /// Runs a run of plain text through the consumer-facing inline syntaxes:
   /// [GptMarkdownConfig.inlinePatterns] first, then autolinking.
   ///
-  /// Both are regex components, so they are dispatched by
+  /// Patterns are regex components, so they are dispatched by
   /// [MarkdownComponent.generate] with a component list holding nothing else —
   /// which is what keeps their scope filtering, boundary rules and precedence
-  /// identical to the regex pipeline instead of reimplemented here.
+  /// identical to the regex pipeline instead of reimplemented here. Autolinks
+  /// used to go the same way and no longer do; see [_plainTextSpans].
   static List<InlineSpan> _textSpans(
     BuildContext context,
     String text,
@@ -472,22 +567,47 @@ class PlusparseRenderer {
     return withPatterns(text);
   }
 
+  /// Autolinks one run of plain text.
+  ///
+  /// Patterns have already been expanded by the caller, so the only
+  /// consumer-facing syntax left here is autolinking.
+  ///
+  /// This was the last thing on the plusparse path that ran the legacy
+  /// combined regex, and it was the most expensive: the autolink pattern is a
+  /// six-way alternation, so proving that a paragraph of ordinary prose holds
+  /// no link meant backtracking at every word. [autolinkSpans] finds the same
+  /// candidates with a character scan and hands each one to the same
+  /// [AutolinkMd] resolution code; `test/regression/autolink_parity_test.dart`
+  /// holds the two paths against each other.
   static List<InlineSpan> _plainTextSpans(
     BuildContext context,
     String text,
     GptMarkdownConfig config,
   ) {
-    // Patterns have already been expanded by the caller, so the only
-    // consumer-facing syntax left here is autolinking.
     if (!config.autolink) {
       return [TextSpan(text: text, style: config.style)];
     }
-    return MarkdownComponent.generate(
-      context,
-      text,
-      config.copyWith(inlineComponents: [if (config.autolink) AutolinkMd()]),
-      false,
-    );
+    final patterns = config.inlinePatterns;
+    if (patterns != null && patterns.isNotEmpty) {
+      // Not the scanner: a pattern and an autolink decide precedence between
+      // them through one combined regex — patterns are listed first, so the
+      // earliest match wins and a tie goes to the pattern — and splitting the
+      // dispatch in two would decide it by which half ran first instead.
+      //
+      // This is also the only place a pattern can still be claimed at all.
+      // Masking lifts pattern matches out of the *source* before parsing, but
+      // a run is not always a substring of it: `RegExp(r'^b$')` matches the
+      // `b` that `a**b**c` parses to and never matches the source, so this
+      // dispatch is what renders it. `test/regression/autolink_parity_test`
+      // pins that case.
+      return MarkdownComponent.generate(
+        context,
+        text,
+        config.copyWith(inlineComponents: [AutolinkMd()]),
+        false,
+      );
+    }
+    return autolinkSpans(context, text, config);
   }
 
   static InlineSpan _inline(

@@ -140,29 +140,34 @@ class _IssuesPageState extends State<IssuesPage> {
                       _stateTabs(theme, page),
                       const Divider(height: 1),
                       Expanded(
-                        child: page.issues.isEmpty
-                            ? EmptyState(
-                                icon: Icons.check_circle_outline,
-                                title: 'No $_state issues',
-                                body: _search.text.isEmpty && _label.isEmpty
-                                    ? 'Report a rendering problem from the '
-                                          'chat screen and it appears here.'
-                                    : 'Nothing matches the current filters.',
-                              )
-                            : ListView.separated(
-                                itemCount: page.issues.length,
-                                separatorBuilder: (_, _) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (context, index) => _IssueRow(
-                                  issue: page.issues[index],
-                                  onTap: () =>
-                                      _openIssue(page.issues[index].number),
-                                  onLabelTap: (name) {
-                                    setState(() => _label = name);
-                                    _reload();
-                                  },
+                        child:
+                            page.issues.isEmpty
+                                ? EmptyState(
+                                  icon: Icons.check_circle_outline,
+                                  title: 'No $_state issues',
+                                  body:
+                                      _search.text.isEmpty && _label.isEmpty
+                                          ? 'Report a rendering problem from the '
+                                              'chat screen and it appears here.'
+                                          : 'Nothing matches the current filters.',
+                                )
+                                : ListView.separated(
+                                  itemCount: page.issues.length,
+                                  separatorBuilder:
+                                      (_, _) => const Divider(height: 1),
+                                  itemBuilder:
+                                      (context, index) => _IssueRow(
+                                        issue: page.issues[index],
+                                        onTap:
+                                            () => _openIssue(
+                                              page.issues[index].number,
+                                            ),
+                                        onLabelTap: (name) {
+                                          setState(() => _label = name);
+                                          _reload();
+                                        },
+                                      ),
                                 ),
-                              ),
                       ),
                     ],
                   );
@@ -188,15 +193,16 @@ class _IssuesPageState extends State<IssuesPage> {
                 hintText: 'Search issues',
                 prefixIcon: const Icon(Icons.search, size: 20),
                 isDense: true,
-                suffixIcon: _search.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          _search.clear();
-                          _reload();
-                        },
-                      ),
+                suffixIcon:
+                    _search.text.isEmpty
+                        ? null
+                        : IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _search.clear();
+                            _reload();
+                          },
+                        ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -225,8 +231,14 @@ class _IssuesPageState extends State<IssuesPage> {
             items: const [
               DropdownMenuItem(value: 'newest', child: Text('Newest')),
               DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
-              DropdownMenuItem(value: 'updated', child: Text('Recently updated')),
-              DropdownMenuItem(value: 'comments', child: Text('Most commented')),
+              DropdownMenuItem(
+                value: 'updated',
+                child: Text('Recently updated'),
+              ),
+              DropdownMenuItem(
+                value: 'comments',
+                child: Text('Most commented'),
+              ),
             ],
             onChanged: (value) {
               setState(() => _sort = value ?? 'newest');
@@ -250,9 +262,10 @@ class _IssuesPageState extends State<IssuesPage> {
         icon: Icon(icon, size: 16),
         label: Text('$count $label'),
         style: TextButton.styleFrom(
-          foregroundColor: selected
-              ? theme.colorScheme.onSurface
-              : theme.colorScheme.onSurfaceVariant,
+          foregroundColor:
+              selected
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.onSurfaceVariant,
           textStyle: TextStyle(
             fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
           ),

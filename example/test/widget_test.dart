@@ -1,8 +1,31 @@
 import 'package:example/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gpt_markdown/custom_widgets/link_button.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
+
+/// Counts rendered links.
+///
+/// A link is a `LinkTextSpan` now, not a `LinkButton` widget — that is what
+/// lets its label wrap across lines and be selected with the text around it.
+int countLinks(WidgetTester tester) {
+  var count = 0;
+  for (final rich in tester.widgetList<RichText>(
+    find.byWidgetPredicate((w) => w is RichText),
+  )) {
+    void walk(InlineSpan span) {
+      if (span is LinkTextSpan) {
+        count += 1;
+      }
+      span.visitDirectChildren((child) {
+        walk(child);
+        return true;
+      });
+    }
+
+    walk(rich.text);
+  }
+  return count;
+}
 
 void main() {
   testWidgets('the example page renders its sample markdown', (tester) async {
@@ -15,7 +38,7 @@ void main() {
 
     expect(find.byType(GptMarkdown), findsOneWidget);
     // The sample ends with a link, so rendering got all the way through.
-    expect(find.byType(LinkButton), findsWidgets);
+    expect(countLinks(tester), greaterThan(0));
   });
 
   testWidgets('each demo is reachable from the app bar', (tester) async {

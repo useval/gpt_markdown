@@ -212,3 +212,18 @@ class MdSourceTag extends MdNode {
 class MdLineBreak extends MdNode {
   const MdLineBreak();
 }
+
+/// An extension's parsed payload. [body] remains raw unless the extension
+/// explicitly parses it; [data] should be immutable and independent of Flutter.
+class MdCustomBlock extends MdNode {
+  const MdCustomBlock({
+    required this.type,
+    required this.body,
+    this.data,
+    this.closed = true,
+  });
+  final String type;
+  final String body;
+  final Object? data;
+  final bool closed;
+}

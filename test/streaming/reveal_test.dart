@@ -65,7 +65,8 @@ bool _shows(String text) =>
 /// and would step the count rather than ramp it.
 String _visible(WidgetTester tester) {
   final buffer = StringBuffer();
-  for (final element in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
+  for (final element
+      in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
     buffer.write(
       (element.widget as RichText).text.toPlainText(includePlaceholders: false),
     );
@@ -89,7 +90,8 @@ Set<double> _alphas(WidgetTester tester) {
     span.children?.forEach(walk);
   }
 
-  for (final element in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
+  for (final element
+      in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
     walk((element.widget as RichText).text);
   }
   return seen;
@@ -109,7 +111,8 @@ int _painted(WidgetTester tester) {
     span.children?.forEach(walk);
   }
 
-  for (final element in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
+  for (final element
+      in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
     walk((element.widget as RichText).text);
   }
   return count;

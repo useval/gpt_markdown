@@ -38,10 +38,7 @@ class ChatConfig {
       defaultValue: defaultProxyBaseUrl,
     ),
     apiKey: String.fromEnvironment('OPENAI_API_KEY'),
-    model: String.fromEnvironment(
-      'OPENAI_MODEL',
-      defaultValue: 'gpt-4o-mini',
-    ),
+    model: String.fromEnvironment('OPENAI_MODEL', defaultValue: 'gpt-4o-mini'),
     systemPrompt: defaultSystemPrompt,
   );
 
@@ -62,6 +59,7 @@ class ChatConfig {
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   final String baseUrl;
+
   /// The provider key when talking to a provider directly, or the proxy's
   /// `ACCESS_TOKEN` when talking to `ai-testing`. Both travel as
   /// `Authorization: Bearer`, and neither is needed by default — the proxy

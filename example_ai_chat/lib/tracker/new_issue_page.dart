@@ -147,9 +147,10 @@ class _NewIssuePageState extends State<NewIssuePage> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: _submitting
-                          ? null
-                          : () => Navigator.of(context).pop(),
+                      onPressed:
+                          _submitting
+                              ? null
+                              : () => Navigator.of(context).pop(),
                       child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 12),
@@ -159,13 +160,16 @@ class _NewIssuePageState extends State<NewIssuePage> {
                         backgroundColor: IssueColors.open,
                         foregroundColor: Colors.white,
                       ),
-                      icon: _submitting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.check, size: 18),
+                      icon:
+                          _submitting
+                              ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.check, size: 18),
                       label: const Text('Submit new issue'),
                     ),
                   ],

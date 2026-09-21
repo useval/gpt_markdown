@@ -49,3 +49,39 @@ example_ai_chat/
 
 # Libraries should not publish a lockfile.
 pubspec.lock
+
+# Local performance harnesses. They assert nothing, take minutes, and exist to
+# compare revisions of this package against each other. `.gitignore` keeps them
+# untracked, but this file replaces `.gitignore` at publish time, so they have
+# to be named again here or they ship.
+benchmark/
+
+# The package's own tests. They are the repository's guarantee, not something a
+# consumer compiles against, and they carry fixtures and golden images.
+test/
+test/**/failures/
+
+# Repository task running and editor tooling.
+justfile
+devtools_options.yaml
+example/analysis_options.yaml
+example/devtools_options.yaml
+
+# The example ships for its source: `example/lib`, its pubspec and `example.md`
+# are what pub.dev renders and what pana checks for. The platform scaffolding is
+# generated boilerplate — six folders of manifests, icons and Gradle files that
+# no reader of the package needs.
+example/android/
+example/ios/
+example/linux/
+example/macos/
+example/web/
+example/windows/
+example/test/
+
+# Editor and OS debris that `.gitignore` would have caught.
+.DS_Store
+*.log
+*.swp
+migrate_working_dir/
+**/doc/api/

@@ -25,7 +25,8 @@ String _rendered(WidgetTester tester) {
     span.children?.forEach(walk);
   }
 
-  for (final element in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
+  for (final element
+      in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
     walk((element.widget as RichText).text);
   }
   return buffer.toString();

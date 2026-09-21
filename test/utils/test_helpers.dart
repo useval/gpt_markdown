@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gpt_markdown/custom_widgets/code_field.dart';
+import 'package:gpt_markdown/custom_widgets/custom_divider.dart';
+import 'package:gpt_markdown/custom_widgets/custom_rb_cb.dart';
+import 'package:gpt_markdown/custom_widgets/indent_widget.dart';
+import 'package:gpt_markdown/custom_widgets/selectable_adapter.dart';
+import 'package:gpt_markdown/custom_widgets/unordered_ordered_list.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 import 'serializer.dart';
@@ -39,38 +45,97 @@ Future<void> pumpMarkdown(
 /// This iterates through ALL RichText widgets to capture nested content
 /// (from MdWidget instances inside list items, checkboxes, etc.)
 String getSerializedOutput(WidgetTester tester) {
-  // Find ALL RichText widgets (including nested ones from MdWidget)
-  // `byType` matches the exact runtime type, and paragraphs carrying inline
-  // code or reordered placeholders are `RichText` *subclasses*.
-  final richTextFinder = find.byWidgetPredicate((widget) => widget is RichText);
-
-  if (richTextFinder.evaluate().isEmpty) {
-    return '';
+  // Walk the element tree in document order rather than collecting every
+  // `RichText` first.
+  //
+  // Block constructs used to be `WidgetSpan`s inside a paragraph, so finding
+  // the paragraphs found everything. They are plain siblings in a column now —
+  // a table, a fence or a block equation has no `RichText` above it — and a
+  // finder for paragraphs walks straight past them.
+  //
+  // Three kinds of node stop or shape the walk:
+  //  * a paragraph, serialized from its spans;
+  //  * an *opaque* block, which the serializer renders whole from its own
+  //    fields and whose insides are noise (a fence's raw text, the glyphs an
+  //    equation is built from);
+  //  * a *wrapper* block, which contributes a marker and still has to be
+  //    descended into, because its content is a paragraph further down.
+  final parts = <String>[];
+  final builtChildren = <Widget, List<Widget>>{};
+  void collect(Element element) {
+    final children = <Widget>[];
+    element.visitChildren((child) {
+      children.add(child.widget);
+      collect(child);
+    });
+    if (element.widget is Builder) builtChildren[element.widget] = children;
   }
 
-  // Get all RichText widgets
-  final richTexts = tester.widgetList<RichText>(richTextFinder).toList();
+  tester.binding.rootElement?.visitChildren(collect);
 
-  if (richTexts.isEmpty) {
-    return '';
+  void walk(Element element, List<String> out) {
+    final widget = element.widget;
+    if (widget is RichText) {
+      final rendered = serializeMarkdown(
+        widget.text,
+        builtChildren: builtChildren,
+      );
+      if (rendered.isNotEmpty) {
+        out.add(rendered);
+      }
+      return;
+    }
+    if (_isOpaqueBlock(widget)) {
+      final rendered = serializeBlockWidget(widget);
+      if (rendered.isNotEmpty) {
+        out.add(rendered);
+      }
+      return;
+    }
+    final wrap = _wrapperMarker(widget);
+    if (wrap != null) {
+      final inner = <String>[];
+      element.visitChildren((child) => walk(child, inner));
+      out.add(wrap(inner.join(' ')));
+      return;
+    }
+    element.visitChildren((child) => walk(child, out));
   }
 
-  // Every paragraph, in document order.
-  //
-  // The regex pipeline builds one paragraph holding the whole document, so the
-  // first `RichText` was the document. The incremental pipeline renders each
-  // top-level segment as its own paragraph, and a construct that needs a
-  // widget — a list item, a table cell, a heading — renders its content in a
-  // paragraph of its own beneath a placeholder. Serializing only the first
-  // reports the opening block; serializing only the outermost reports
-  // `UL_ITEM()` with nothing in it.
-  //
-  // Nesting does not double-count: a placeholder contributes no text to its
-  // parent's span tree, so each run of text is serialized exactly once.
-  return richTexts
-      .map((rt) => serializeMarkdown(rt.text))
-      .where((out) => out.isNotEmpty)
-      .join('\n');
+  tester.binding.rootElement?.visitChildren((e) => walk(e, parts));
+  return parts.join('\n');
+}
+
+/// A block the serializer renders whole, whose subtree must not be walked.
+bool _isOpaqueBlock(Widget widget) =>
+    // Rendered maths, matched by type name because `flutter_math_fork`'s type
+    // is not importable here — the same heuristic the serializer itself uses.
+    // Descending would report each glyph of an equation as its own run.
+    widget.runtimeType.toString().contains('Math') ||
+    widget is SelectableAdapter ||
+    widget is CodeField ||
+    widget is Table ||
+    widget is CustomDivider;
+
+/// How a block wraps its serialized content, while still being walked into.
+String Function(String inner)? _wrapperMarker(Widget widget) {
+  if (widget is UnorderedListView) {
+    return (inner) => 'UL_ITEM($inner)';
+  }
+  if (widget is OrderedListView) {
+    final no = widget.no.replaceAll('.', '');
+    return (inner) => 'OL_ITEM($no, $inner)';
+  }
+  if (widget is BlockQuoteWidget) {
+    return (inner) => 'BLOCKQUOTE($inner)';
+  }
+  if (widget is CustomCb) {
+    return (inner) => 'CHECKBOX(checked=${widget.value}, $inner)';
+  }
+  if (widget is CustomRb) {
+    return (inner) => 'RADIO(checked=${widget.value}, $inner)';
+  }
+  return null;
 }
 
 /// Combined helper that pumps markdown and asserts on the serialized output.

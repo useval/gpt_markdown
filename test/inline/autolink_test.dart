@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gpt_markdown/custom_widgets/link_button.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 late List<({String url, String title})> taps;
@@ -29,18 +29,65 @@ Future<void> pump(
   await tester.pumpAndSettle();
 }
 
+/// Every rendered link, in document order.
+///
+/// A link is a `LinkTextSpan` now, not a `LinkButton` widget — that is what
+/// lets its label wrap across lines and be selected with the text around it.
+List<({RichText rich, LinkTextSpan span})> _links(WidgetTester tester) {
+  final found = <({RichText rich, LinkTextSpan span})>[];
+  for (final rich in tester.widgetList<RichText>(
+    find.byWidgetPredicate((w) => w is RichText),
+  )) {
+    void walk(InlineSpan span) {
+      if (span is LinkTextSpan) {
+        found.add((rich: rich, span: span));
+      }
+      span.visitDirectChildren((child) {
+        walk(child);
+        return true;
+      });
+    }
+
+    walk(rich.text);
+  }
+  return found;
+}
+
 /// Taps the [index]-th link and returns what the callback received.
 Future<({String url, String title})> tapLink(
   WidgetTester tester, [
   int index = 0,
 ]) async {
-  await tester.tap(find.byType(LinkButton).at(index));
+  final links = _links(tester);
+  expect(links.length, greaterThan(index), reason: 'no link at $index');
+  final entry = links[index];
+  final label = entry.span.toPlainText(includePlaceholders: false);
+  final plain = entry.rich.text.toPlainText();
+  final start = plain.indexOf(label);
+  expect(start, isNot(-1), reason: 'label "$label" not in "$plain"');
+
+  final finder = find.byWidgetPredicate((w) => identical(w, entry.rich));
+  final renderObject = tester.renderObject<RenderParagraph>(finder);
+  final boxes = renderObject.getBoxesForSelection(
+    TextSelection(baseOffset: start, extentOffset: start + label.length),
+  );
+  expect(boxes, isNotEmpty, reason: 'no boxes for "$label"');
+  final box = boxes.first;
+  await tester.tapAt(
+    tester.getTopLeft(finder) +
+        Offset((box.left + box.right) / 2, (box.top + box.bottom) / 2),
+  );
   await tester.pumpAndSettle();
   return taps[index];
 }
 
-int linkCount(WidgetTester tester) => find.byType(LinkButton).evaluate().length;
+int linkCount(WidgetTester tester) => _links(tester).length;
 
+/// All rendered text, link labels included.
+///
+/// Before links became spans this excluded them: a link was a placeholder, and
+/// `includePlaceholders: false` dropped its whole label. The assertions using
+/// it are about what lands *outside* a link, which still holds.
 String plainText(WidgetTester tester) {
   final buffer = StringBuffer();
   for (final rt in tester.widgetList<RichText>(

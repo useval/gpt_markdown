@@ -6,7 +6,9 @@ import 'chat_demo.dart';
 import 'demo_theme.dart';
 import 'inline_code_demo.dart';
 import 'inline_patterns_demo.dart';
+import 'max_lines_demo.dart';
 import 'selection_demo.dart';
+import 'rtl_demo.dart';
 import 'streaming_demo.dart';
 import 'text_scale_demo.dart';
 
@@ -133,6 +135,16 @@ class _ExamplePageState extends State<ExamplePage> {
   /// Lets `$…$` open math, so `$|z|$` can be tried alongside `\(|z|\)`.
   bool _useDollar = false;
 
+  TextDirection _textDirection = TextDirection.ltr;
+
+  void _toggleTextDirection() {
+    setState(() {
+      const values = TextDirection.values;
+      final length = values.length;
+      _textDirection = values[(_textDirection.index + 1) % length];
+    });
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -163,6 +175,8 @@ class _ExamplePageState extends State<ExamplePage> {
             _controller.text,
             // Both parsers are reachable so the two can be compared on the same
             // input; see the "Parser" switch in the toolbar.
+            textDirection: _textDirection,
+            // ignore: deprecated_member_use
             incremental: _incremental,
             useDollarSignsForLatex: _useDollar,
             onLinkTap: (url, title) => debugPrint('Link tapped: $url'),
@@ -178,6 +192,13 @@ class _ExamplePageState extends State<ExamplePage> {
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 4,
             children: [
+              const Text('TextDirection:'),
+              TextButton(
+                onPressed: _toggleTextDirection,
+                child: Text(
+                  _textDirection.name,
+                ),
+              ),
               const Text('Parser:'),
               Switch(
                 value: _incremental,
@@ -237,6 +258,20 @@ class _ExamplePageState extends State<ExamplePage> {
             icon: const Icon(Icons.format_size_rounded),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const TextScalePage()),
+            ),
+          ),
+          IconButton(
+            tooltip: 'RTL block alignment demo',
+            icon: const Icon(Icons.format_textdirection_r_to_l),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const RtlPage()),
+            ),
+          ),
+          IconButton(
+            tooltip: 'maxLines demo',
+            icon: const Icon(Icons.short_text_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const MaxLinesPage()),
             ),
           ),
           IconButton(

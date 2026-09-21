@@ -12,10 +12,10 @@
 </p>
 
 <p align="center">
-  <a href="https://pub.dev/packages/gpt_markdown"><img src="https://img.shields.io/pub/v/gpt_markdown" alt="Pub Version"></a>
-  <a href="https://img.shields.io/pub/likes/gpt_markdown"><img src="https://img.shields.io/pub/likes/gpt_markdown" alt="Pub Likes"></a>
-  <a href="https://img.shields.io/pub/points/gpt_markdown"><img src="https://img.shields.io/pub/points/gpt_markdown" alt="Pub Points"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg" alt="BSD-3-Clause license"></a>
+  <a href="https://pub.dev/packages/gpt_markdown"><img src="https://img.shields.io/pub/v/gpt_markdown?color=F47C3C" alt="Pub Version"></a>
+<a href="https://img.shields.io/pub/likes/gpt_markdown?color=8B5CF6"><img src="https://img.shields.io/pub/likes/gpt_markdown?color=8B5CF6" alt="Pub Likes"></a>
+<a href="https://img.shields.io/pub/points/gpt_markdown?color=44C11F"><img src="https://img.shields.io/pub/points/gpt_markdown?color=44C11F" alt="Pub Points"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD--3--Clause-1687D2.svg" alt="BSD-3-Clause license"></a>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 ## ✨ Why gpt_markdown?
 
 - **Built for AI output** — Markdown, LaTeX, code blocks, tables, citations, images, task lists, and mixed rich content in one response.
-- **Streaming that stays fast** — only the live tail rebuilds while settled content is cached, keeping the rendering cost stable as replies grow.
+- **Streaming that stays fast** — settled segments are reused while the live tail updates. At 12 KB, each update is 31× faster than in 1.2.1—or 74× faster with the lazy sliver. [See the benchmarks](docs/benchmark.md).
 - **Production-level control** — style sheets, Flutter theme extensions, component builders, callbacks, and custom components.
 - **Extensible inline UI** — add `@mentions`, `#channels`, `:emoji:`, issue references, and product-specific syntax without forking the renderer.
 - **Designed for real-world edge cases** — RTL, text scaling, selection, malformed Markdown, autolinks, nested content, reduced motion, Flutter web, and WASM.
@@ -40,8 +40,8 @@
 | | Rendering | | Production experience | | Extensibility |
 |---|---|---|---|---|---|
 | 📝 | Rich Markdown | ⚡ | Adaptive streaming | 🎨 | Component style sheet |
-| ∑ | Inline and block LaTeX | 🚀 | Stable per-token cost | 🧱 | Structural builders |
-| 💻 | Inline and fenced code | ♿ | Selection and text scaling | 🏷️ | Mentions, channels, and emoji |
+| ∑ | Inline and block LaTeX | 🚀 | Lazy sliver rendering | 🧱 | Structural builders |
+| 💻 | Syntax-highlighted code | ♿ | Selection and text scaling | 🏷️ | Mentions, channels, and emoji |
 | 📊 | Tables and aligned columns | 🌍 | RTL, web, and WASM | 🧩 | Custom components and scopes |
 | 🔗 | Links, autolinks, and images | 🌓 | Theme-aware rendering | 👆 | Interaction callbacks |
 | ☑️ | Lists, tasks, and citations | 🛡️ | Graceful malformed input | 📱 | Custom URL schemes |
@@ -52,8 +52,8 @@ Every image is one `GptMarkdown` widget with no styling applied — the defaults
 
 |  |  |  |
 |:--|:--|:--|
-| <img alt="Rich text rendered by gpt_markdown" src="https://raw.githubusercontent.com/Infinitix-LLC/gpt_markdown/main/screenshots/rich-text.png?v=2"><br>**Rich text**<br>Headings, emphasis, lists, quotes, rules, autolinks. | <img alt="LaTeX rendered by gpt_markdown" src="https://raw.githubusercontent.com/Infinitix-LLC/gpt_markdown/main/screenshots/math.png?v=2"><br>**LaTeX**<br>Inline and display equations, on the text baseline. | <img alt="Tables rendered by gpt_markdown" src="https://raw.githubusercontent.com/Infinitix-LLC/gpt_markdown/main/screenshots/tables.png?v=2"><br>**Tables**<br>Per-column alignment, Markdown inside cells. |
-| <img alt="Code rendered by gpt_markdown" src="https://raw.githubusercontent.com/Infinitix-LLC/gpt_markdown/main/screenshots/code.png?v=2"><br>**Code**<br>Fenced blocks with a language header, wrapping inline code. | <img alt="Task lists rendered by gpt_markdown" src="https://raw.githubusercontent.com/Infinitix-LLC/gpt_markdown/main/screenshots/lists.png?v=2"><br>**Task lists**<br>Checkboxes, ordered and nested lists, citation tags. | <img alt="Inline patterns rendered by gpt_markdown" src="https://raw.githubusercontent.com/Infinitix-LLC/gpt_markdown/main/screenshots/inline-patterns.png?v=2"><br>**Inline patterns**<br>Mentions, channels, shortcodes. `#2959` stays text. |
+| <img alt="Rich text rendered by gpt_markdown" src="https://raw.githubusercontent.com/useval/gpt_markdown/main/screenshots/rich-text.png?v=2"><br>**Rich text**<br>Headings, emphasis, lists, quotes, rules, autolinks. | <img alt="LaTeX rendered by gpt_markdown" src="https://raw.githubusercontent.com/useval/gpt_markdown/main/screenshots/math.png?v=2"><br>**LaTeX**<br>Inline and display equations, on the text baseline. | <img alt="Tables rendered by gpt_markdown" src="https://raw.githubusercontent.com/useval/gpt_markdown/main/screenshots/tables.png?v=2"><br>**Tables**<br>Per-column alignment, Markdown inside cells. |
+| <img alt="Code rendered by gpt_markdown" src="https://raw.githubusercontent.com/useval/gpt_markdown/main/screenshots/code.png?v=2"><br>**Code**<br>Syntax highlighting, language labels, and copy controls. | <img alt="Task lists rendered by gpt_markdown" src="https://raw.githubusercontent.com/useval/gpt_markdown/main/screenshots/lists.png?v=2"><br>**Task lists**<br>Checkboxes, ordered and nested lists, citation tags. | <img alt="Inline patterns rendered by gpt_markdown" src="https://raw.githubusercontent.com/useval/gpt_markdown/main/screenshots/inline-patterns.png?v=2"><br>**Inline patterns**<br>Mentions, channels, shortcodes. `#2959` stays text. |
 
 ## 🛠️ Quick start
 
@@ -95,12 +95,11 @@ See **[doc/gpt_chat.md](doc/gpt_chat.md)** for the full guide.
 
 ## ⚡ Streaming AI responses
 
-Rebuild `GptMarkdown` with the complete text received so far. The settled prefix is cached and only the part that can still change is rebuilt.
+Rebuild `GptMarkdown` with the complete text received so far. Settled segments are reused while the changing tail updates.
 
 ```dart
 GptMarkdown(
   streamedReply,
-  incremental: true, // default: caches every unchanged top-level segment
   animation: GptMarkdownAnimation.fade,
   blockAnimation: GptMarkdownBlockAnimation.fadeIn,
   isStreaming: stillGenerating,
@@ -108,56 +107,37 @@ GptMarkdown(
 )
 ```
 
-The single-pass parser is 20x–69x faster than the legacy parser in the package
-benchmarks. Segment caching rebuilds only the changing tail, so append cost
-stays roughly flat as a reply grows. The reveal adapts when tokens arrive
-quickly, fast-forwards when generation finishes, avoids unsafe splits inside
-code fences and block math, and respects reduced-motion settings. See the
-[streaming and incremental rendering guide](docs/streaming.md) for every
-animation mode, compatibility rules and benchmark methodology.
+The reveal adapts to incoming text, finishes when generation ends, and respects reduced-motion settings. See the [streaming guide](docs/streaming.md) for animation modes and configuration.
+
+For long responses and documents, use `SliverGptMarkdown` inside a
+`CustomScrollView`. It creates spans and widgets only for the segments requested
+by the viewport, including its cache extent. The regular `GptMarkdown` widget is
+cheaper for short content and remains the option for character reveal. See the
+[rendering architecture guide](docs/rendering-architecture.md).
 
 ## 📝 Markdown, LaTeX, and rich AI output
 
-````dart
+```dart
 GptMarkdown(
   r'''
 ## Revenue forecast
 
-The projected growth is **18%**, based on:
+Projected growth: **18%**.
 
 \[
 R_{next} = R_{current} \times (1 + 0.18)
 \]
-
-| Quarter | Revenue |
-|:-------:|--------:|
-| Q1      | $120K   |
-| Q2      | $142K   |
-
-```dart
-final growth = currentRevenue * 1.18;
-```
 
 - [x] Validate the assumptions
 - [ ] Review the final forecast
 
 Sources: [1] [2]
   ''',
-  onLinkTap: (url, title) => openUrl(url),
   onSourceTagTap: (source) => openSource(source),
 )
-````
+```
 
-Supported output includes:
-
-- Headings, bold, italic, strikethrough, underline, and inline code
-- Ordered, unordered, nested, task, and radio lists
-- Links, bare URLs, email autolinks, images, and citations
-- Tables with column alignment and horizontal overflow
-- Inline and block LaTeX using `\( ... \)` and `\[ ... \]`
-- Optional dollar-sign LaTeX through `useDollarSignsForLatex: true`
-- Fenced code blocks with automatic syntax highlighting, language labels,
-  copy controls, and open-fence streaming support
+Use `\( ... \)` for inline LaTeX and `\[ ... \]` for block equations. Enable dollar-sign syntax with `useDollarSignsForLatex: true`. Code fences include syntax highlighting, language labels, and copy controls.
 
 Wrap the renderer with `SelectionArea` when selectable output is needed:
 
@@ -196,7 +176,7 @@ GptMarkdown(
 )
 ```
 
-Set the same styles app-wide with `GptMarkdownThemeData`, or use builders such as `codeBuilder`, `tableBuilder`, `headingBuilder`, `blockQuoteBuilder`, and `imageBuilder` for full structural control.
+Set styles app-wide with `GptMarkdownThemeData`. Use builders such as `codeBuilder`, `tableBuilder`, and `imageBuilder` to replace components, or span-based builders for links, citations, and inline code. See [customization](docs/customization.md).
 
 ## 🏷️ App-specific inline UI
 
@@ -221,47 +201,15 @@ GptMarkdown(
 )
 ```
 
-Known names are matched longest-first, and patterns do not claim link labels by default. This prevents ambiguous tokens such as `#2959` from becoming channels and avoids nested inline widgets that do not paint correctly on iOS.
+Only known channel names are matched, longest-first. Patterns exclude link labels by default; unrecognized tokens such as `#2959` remain text.
 
-For deeper integrations, use `MarkdownComponent`, `InlineMd`, and `BlockMd`. Components can declare support for `content`, `linkLabel`, `tableCell`, and `heading` scopes.
+Use `blockComponents` for custom blocks and `inlineDirectives` for payloads the parser must leave untouched. See [custom components](docs/custom-components.md).
+
+**Upgrading?** Passing `components` or `inlineComponents`, even an empty list, selects the deprecated legacy parser. Replace them to use the new pipeline. See the [migration guide](MIGRATION.md) and [changelog](CHANGELOG.md).
 
 ## 🔗 Autolinks
 
-Bare URLs, `www.` hosts, email addresses, and CommonMark angle autolinks work without preprocessing:
-
-```dart
-GptMarkdown(
-  'Visit https://gptmarkdown.com or email hello@example.com',
-)
-```
-
-Autolinks follow GFM trimming rules, preserve balanced parentheses, and avoid leaking surrounding Markdown into the URL. Add app-specific schemes or turn bare autolinking off when needed:
-
-```dart
-GptMarkdown(
-  reply,
-  autolinkSchemes: const {'myapp'},
-  // autolink: false,
-)
-```
-
-Explicit `[label](url)` links continue working when `autolink` is disabled.
-
-## 🚀 New in 1.2.0
-
-- Adaptive streaming reveal with split-document caching
-- `GptMarkdownStyleSheet` and twelve per-component style classes
-- Builders and callbacks for every major output component
-- Selectable, wrapping, baseline-aligned inline-code chips
-- `InlinePattern` for product-specific inline syntax
-- `MarkdownScope` for safe nested rendering
-- GFM and CommonMark autolinking
-- Correct RTL inline-widget ordering
-- Proportional accessibility text scaling
-- Theme and runtime configuration rebuild fixes
-- Safer malformed-Markdown and component dispatch behavior
-
-Upgrading from 1.1.x? Read the [migration guide](MIGRATION.md).
+Bare URLs, `www.` hosts, emails, and angle autolinks work automatically. Add custom schemes with `autolinkSchemes: const {'myapp'}`, or disable autolinking with `autolink: false`. Explicit `[label](url)` links still work. See [inline syntax](docs/inline-syntax.md).
 
 ## 📚 Documentation
 
@@ -270,14 +218,22 @@ Upgrading from 1.1.x? Read the [migration guide](MIGRATION.md).
 | [Getting started](docs/getting-started.md) | Installation, syntax, taps, LaTeX, RTL, and selection |
 | [Customization](docs/customization.md) | Style classes, themes, builders, and callbacks |
 | [Streaming](docs/streaming.md) | Pacing, performance, accessibility, and limitations |
+| [Rendering architecture](docs/rendering-architecture.md) | Extension registration, lazy rendering, and performance policies |
 | [Inline syntax](docs/inline-syntax.md) | Autolinks, mentions, channels, and scopes |
 | [Custom components](docs/custom-components.md) | Block and inline extensions |
 | [`GptMarkdown` options](docs/api-options.md) | Every constructor option and default |
-| [Migration](MIGRATION.md) | Changes from 1.1.x to 1.2.0 |
+| [Benchmarks](docs/benchmark.md) | Methodology, results, and limitations |
+| [Migration](MIGRATION.md) | What each release changes, newest first |
+
+## Built by Val
+
+`gpt_markdown` is the open-source rendering foundation of [Val](https://useval.io), the live visual layer for AI agents.
+
+Building an AI product that needs richer output than a text box? [Request early access to Val.](https://useval.io/)
 
 ## 💬 Community
 
-Issues and pull requests are welcome on [GitHub](https://github.com/Infinitix-LLC/gpt_markdown). If the package helps your project, consider giving it a like on [pub.dev](https://pub.dev/packages/gpt_markdown) or a star on GitHub.
+Issues and pull requests are welcome on [GitHub](https://github.com/useval/gpt_markdown). If the package helps your project, consider giving it a like on [pub.dev](https://pub.dev/packages/gpt_markdown) or a star on GitHub.
 
 ## 📄 License
 

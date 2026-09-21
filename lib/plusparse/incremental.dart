@@ -22,8 +22,9 @@ double blockGap(BuildContext context, GptMarkdownConfig config) {
 /// each renders as its own `Text.rich` in a column, cached by its source text.
 /// Appending to the reply only rebuilds the tail segment — earlier segments
 /// keep their exact widget instances, so Flutter skips rebuilding and
-/// re-laying-out everything above (LaTeX, tables, lists…) and per-chunk cost
-/// stays constant instead of growing with answer length.
+/// re-laying-out everything above (LaTeX, tables, lists…). Source updates still
+/// compare prefixes and reconcile segment metadata; growing blocks still
+/// require parsing. Animation ticks notify only the active reveal window.
 ///
 /// ## The reveal
 ///
@@ -89,17 +90,46 @@ class _IncrementalMdView extends StatefulWidget {
 
 class _IncrementalMdViewState extends State<_IncrementalMdView>
     with SingleTickerProviderStateMixin {
-  /// Rendered spans per segment source. Spans, not widgets: the reveal
+  /// Rendered spans per position and source. Parsed ASTs can be shared by
+  /// identical source, but widget spans may own GlobalKeys or controllers
+  /// and must never be shared between simultaneous document positions.
+  /// Spans, not widgets: the reveal
   /// restyles them every frame, and re-rendering to get them back would put
   /// the parser in the frame loop, which is the cost this whole design exists
   /// to avoid.
-  final Map<String, List<InlineSpan>> _spans = {};
+  final Map<(int, String), List<InlineSpan>> _spans = {};
+  final Map<String, MdDocument> _documents = {};
+  final Map<(int, String), int> _characterCounts = {};
+  List<String> _segments = const [];
+  List<List<InlineSpan>> _rendered = const [];
+  List<int> _starts = const [];
+  List<int> _counts = const [];
+  bool _prepared = false;
+  final _segmentCache = MarkdownSegmentCache();
+  final List<ValueNotifier<int>> _segmentFrames = [];
+  bool _motionEnabled = true;
 
   /// Fully settled segment paragraphs, built once and handed back by
   /// identity. The entrance wrapper is applied outside the cache: it is keyed
-  /// by position, and two identical segments — two rules, say — share one
-  /// cached paragraph but must not share one keyed wrapper.
-  final Map<String, Widget> _settled = {};
+  /// by position. Repeated source has independent widget/controller ownership.
+  final Map<(int, String), Widget> _settled = {};
+
+  /// How long after the last chunk a reply still counts as arriving.
+  ///
+  /// Long enough to bridge the gap between tokens, short enough that a reader
+  /// who stops to look does not wait for the document to become navigable.
+  static const Duration _arrivalQuiet = Duration(milliseconds: 250);
+
+  /// Whether text is still arriving by append — the streaming signature,
+  /// observed rather than declared. `isStreaming` cannot answer this: it
+  /// defaults to true and hosts routinely leave it on for a finished reply.
+  bool _arriving = false;
+  Timer? _arrivalTimer;
+
+  /// Plain text per segment, for the one semantics label a streaming reply
+  /// exposes. Only ever populated while an assistive service is reading, so a
+  /// reader who is not using one pays nothing for it.
+  final Map<(int, String), String> _plainText = {};
 
   late RevealEngine _engine = RevealEngine(
     fadeSeconds: widget.revealFadeSeconds,
@@ -161,10 +191,24 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
   @override
   void didUpdateWidget(covariant _IncrementalMdView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.text != oldWidget.text) {
+    if (widget.text != oldWidget.text &&
+        widget.text.startsWith(oldWidget.text)) {
+      _noteArrival();
+    }
+    if (widget.text != oldWidget.text ||
+        widget.isStreaming != oldWidget.isStreaming ||
+        widget.revealing != oldWidget.revealing ||
+        widget.holdMathDollars != oldWidget.holdMathDollars) {
+      _prepared = false;
       _holdRelease?.cancel();
       _holdRelease = null;
       _holdExpired = false;
+    }
+    if (!listEquals(
+      oldWidget.config.blockComponents,
+      widget.config.blockComponents,
+    )) {
+      _documents.clear();
     }
     if (!oldWidget.config.isSame(widget.config)) {
       _dropCaches();
@@ -224,14 +268,33 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
 
   @override
   void dispose() {
+    _arrivalTimer?.cancel();
     _holdRelease?.cancel();
     _ticker?.dispose();
+    for (final frame in _segmentFrames) {
+      frame.dispose();
+    }
     super.dispose();
   }
 
+  /// Marks the reply as arriving, and schedules the moment it stops being so.
+  void _noteArrival() {
+    _arriving = true;
+    _arrivalTimer?.cancel();
+    _arrivalTimer = Timer(_arrivalQuiet, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _arriving = false);
+    });
+  }
+
   void _dropCaches() {
+    _prepared = false;
     _spans.clear();
+    _characterCounts.clear();
     _settled.clear();
+    _plainText.clear();
   }
 
   void _startTicking() {
@@ -255,19 +318,71 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     if (dt <= 0) {
       return;
     }
-    setState(() {
-      final keepGoing = _engine.tick(dt, _total, widget.charactersPerSecond);
-      if (!keepGoing) {
-        _stopTicking();
-      }
-    });
+    final before = _engine.revealedFloor;
+    final visibleBefore = _visibleCount(before);
+    final keepGoing = _engine.tick(dt, _total, widget.charactersPerSecond);
+    final after = _engine.revealedFloor;
+    final visibleAfter = _visibleCount(after);
+    if (!keepGoing) _stopTicking();
+    if (!_motionEnabled) return;
+    // Only crossing a segment boundary changes the document's child list.
+    // Inside a segment, notify just the active reveal/fade window.
+    if (visibleBefore != visibleAfter) setState(() {});
+    final from = max(
+      0,
+      _visibleCount(max(0, before - RevealEngine.fadeWindow)) - 1,
+    );
+    for (var i = from; i < visibleAfter && i < _segmentFrames.length; i++) {
+      _segmentFrames[i].value++;
+    }
   }
 
-  List<InlineSpan> _spansFor(BuildContext context, String segment) {
-    return _spans[segment] ??= PlusparseRenderer.render(
+  /// Number of segments whose start precedes the revealed offset.
+  int _visibleCount(int revealed) {
+    var low = 0;
+    var high = _starts.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (_starts[mid] < revealed) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  /// The config blocks are rendered under.
+  ///
+  /// `blocksRenderDirectly` tells the renderer that a block will be lifted out
+  /// of its paragraph — see [_unwrapBlock] — so the block's own content has to
+  /// scale itself rather than rely on a paragraph that is no longer there.
+  /// Gated on [_clamped], because a line budget is the one case a block still
+  /// has to stay inside a paragraph.
+  GptMarkdownConfig get _renderConfig =>
+      _clamped
+          ? widget.config
+          : widget.config.copyWith(blocksRenderDirectly: true);
+
+  /// Whether a line budget applies to this document.
+  ///
+  /// `maxLines` is the obvious one. `overflow: TextOverflow.ellipsis` is the
+  /// other, and it is easy to miss: Flutter truncates to a single line when an
+  /// ellipsis is asked for and no line count is given, so an ellipsis on its
+  /// own is a budget of one. Both have to keep the document in one paragraph —
+  /// a budget cannot be shared across a column of them.
+  bool get _clamped =>
+      widget.config.maxLines != null ||
+      widget.config.overflow == TextOverflow.ellipsis;
+
+  List<InlineSpan> _spansFor(BuildContext context, String segment, int index) {
+    return _spans[(index, segment)] ??= PlusparseRenderer.renderDocument(
       context,
-      segment,
-      widget.config,
+      _documents[segment] ??= Plusparse.parse(
+        segment,
+        blockRegistry: widget.config.blockRegistry,
+      ),
+      _renderConfig,
     );
   }
 
@@ -275,7 +390,112 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
   ///
   /// `isRoot` matters: without it the text renders at `TextScaler.noScaling`
   /// and a raised system font size has no effect at all.
-  Widget _paragraph(List<InlineSpan> spans) => widget.config.getRich(
+  /// The block widget [spans] is nothing but a wrapper around, or null.
+  ///
+  /// A block construct is emitted as a `WidgetSpan` so it can sit inside the
+  /// single-paragraph pipeline. Here it does not need to: a segment is already
+  /// its own child of the column, so wrapping the widget in a placeholder and
+  /// a second `Text.rich` around it buys nothing and costs a great deal. The
+  /// paragraph has to lay the placeholder's child out as its own `RenderBox`
+  /// before it can shape a line, and the nested `Text.rich` is a second full
+  /// text-shaping pass — measured at 145 µs per block against 5 µs for the
+  /// widget on its own.
+  ///
+  /// Only a [BlockWidgetSpan] is unwrapped. An inline image or inline equation
+  /// is also a lone `WidgetSpan` and must keep its paragraph — it is aligned
+  /// against a text baseline that would no longer exist. The two are not
+  /// distinguishable by shape, which is why the renderer marks them.
+  Widget? _unwrapBlock(List<InlineSpan> spans) {
+    if (spans.length != 1) {
+      return null;
+    }
+    var span = spans.first;
+    // The reveal wraps a block to keep its text reachable; the widget inside
+    // has already had the reveal's transform applied, so unwrapping after the
+    // fact is safe.
+    if (span is RevealableSpan) {
+      final children = span.children;
+      if (children == null || children.length != 1) {
+        return null;
+      }
+      span = children.first;
+    }
+    // A block quote carries its bar and inset in a plain `TextSpan` wrapper.
+    if (span is TextSpan && span.text == null) {
+      final children = span.children;
+      if (children == null || children.length != 1) {
+        return null;
+      }
+      span = children.first;
+    }
+    if (span is! BlockWidgetSpan) {
+      return null;
+    }
+    // The flex wrapper `_blockSpan` adds is for the placeholder case: a
+    // paragraph hands a widget span tight-ish constraints, and the flex is
+    // what lets a block size to its content there rather than claim the full
+    // width — stripping it made a bullet list four times wider. A column
+    // child already gets loose constraints, so here the wrapper resolves to
+    // the same size and only adds two render objects for paint to walk on
+    // every frame. `bare` is the same block without it.
+    return span.bare ?? span.child;
+  }
+
+  /// Every block in [spans], if that is *all* [spans] holds.
+  ///
+  /// A list is one segment of many blocks — one per item — separated by the
+  /// line breaks that used to do the spacing inside a paragraph. Stacking them
+  /// gets each item out of its placeholder too, which is where most of a
+  /// list's cost is.
+  ///
+  /// Returns null the moment anything that is not a block or a separator shows
+  /// up, so a paragraph with an inline image in it is never mistaken for one.
+  List<Widget>? _unwrapBlocks(List<InlineSpan> spans) {
+    if (spans.length < 2) {
+      return null;
+    }
+    final widgets = <Widget>[];
+    for (final span in spans) {
+      final block = _unwrapBlock(<InlineSpan>[span]);
+      if (block != null) {
+        widgets.add(block);
+        continue;
+      }
+      // A separator: the "\n" or "\n\n" the renderer puts between blocks.
+      // It carries no content, so dropping it loses nothing — the column
+      // stacks what it separated.
+      if (span is TextSpan &&
+          span.children == null &&
+          (span.text ?? '').trim().isEmpty) {
+        continue;
+      }
+      return null;
+    }
+    return widgets.length < 2 ? null : widgets;
+  }
+
+  Widget _paragraph(List<InlineSpan> spans) {
+    // A line budget is the one thing a column of widgets cannot honour: N
+    // paragraphs cannot share one budget, so a clamped preview would get N
+    // times its allowance. Keep the single-paragraph path for those.
+    if (!_clamped) {
+      final block = _unwrapBlock(spans);
+      if (block != null) {
+        return block;
+      }
+      final blocks = _unwrapBlocks(spans);
+      if (blocks != null) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: blocks,
+        );
+      }
+    }
+    return _richParagraph(spans);
+  }
+
+  Widget _richParagraph(List<InlineSpan> spans) => widget.config.getRich(
     TextSpan(children: spans, style: widget.config.style?.copyWith()),
     isRoot: true,
   );
@@ -342,6 +562,11 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     }
     final last = segments.last;
     final opener = last.trimLeft();
+    // Custom blocks own their incomplete-input policy; inline delimiters in
+    // their opaque bodies must never be held by the Markdown reveal.
+    if (widget.config.blockRegistry?.match(last.split('\n'), 0) != null) {
+      return segments;
+    }
     // Block maths is opaque: whole or nothing. An unterminated `\[` hands
     // partial tex to the renderer, which paints the raw source on any cut
     // landing mid-command — the equation flickered rendered <-> raw several
@@ -396,7 +621,10 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
   void _armHoldRelease() {
     _holdRelease ??= Timer(const Duration(milliseconds: 1500), () {
       if (mounted) {
-        setState(() => _holdExpired = true);
+        setState(() {
+          _holdExpired = true;
+          _prepared = false;
+        });
       }
     });
   }
@@ -458,36 +686,105 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Already masked by `GptMarkdown`, so a directive is inert text here and
-    // cannot be split across segments.
-    // Masked before segmentation so a match can never be split across
-    // segments, and before parsing so it beats the built-in reading of the
-    // same text. Directives are already masked by `GptMarkdown`.
+  // Source work belongs to source updates, never to the animation clock.
+  // Retain hidden spans too: visibility is not a cache invalidation signal.
+  void _prepareDocument(BuildContext context) {
+    if (_prepared) return;
     final patterns = widget.config.inlinePatterns;
     final source =
         patterns == null || patterns.isEmpty
             ? widget.text
-            : maskInlinePatterns(widget.text, patterns);
-    final segments = _visibleSegments(source, splitStreamSegments(source));
-    final gap = blockGap(context, widget.config);
-
-    // Rendered-character extents, and the running total the ticker aims at.
-    // Every segment is measured even when it will not be shown: the target has
-    // to be the whole visible document, or the reveal stops at whatever
-    // happens to be on screen. Measuring is a parse, which is cached — it is
-    // not a layout.
-    final spans = <List<InlineSpan>>[];
-    final starts = <int>[];
+            : maskInlinePatterns(
+              widget.text,
+              patterns,
+              blockRegistry: widget.config.blockRegistry,
+            );
+    // One segment when a line budget is in play — see [_clamped]. Splitting
+    // is what makes an append cheap, but every segment becomes its own
+    // paragraph and the budget is applied to each, so a two-line preview of a
+    // five paragraph reply rendered ten lines, silently, with no overflow mark
+    // and no error. A clamped preview is a static excerpt rather than a
+    // streaming reply, so it gives up incremental parsing to get its clamp
+    // back.
+    _segments =
+        !_clamped
+            ? _visibleSegments(
+              source,
+              _segmentCache.update(
+                source,
+                blockRegistry: widget.config.blockRegistry,
+              ),
+            )
+            : <String>[source];
+    final live = _segments.toSet();
+    _documents.removeWhere((key, _) => !live.contains(key));
+    bool removed((int, String) key) =>
+        key.$1 >= _segments.length || _segments[key.$1] != key.$2;
+    _spans.removeWhere((key, _) => removed(key));
+    _characterCounts.removeWhere((key, _) => removed(key));
+    _settled.removeWhere((key, _) => removed(key));
+    _plainText.removeWhere((key, _) => removed(key));
+    _rendered = [];
+    _starts = [];
+    _counts = [];
     var offset = 0;
-    for (final segment in segments) {
-      final rendered = _spansFor(context, segment);
-      spans.add(rendered);
-      starts.add(offset);
-      offset += countRevealCharacters(rendered);
+    for (var index = 0; index < _segments.length; index++) {
+      final spans = _spansFor(context, _segments[index], index);
+      final count =
+          _characterCounts[(index, _segments[index])] ??= countRevealCharacters(
+            spans,
+          );
+      _rendered.add(spans);
+      _starts.add(offset);
+      _counts.add(count);
+      offset += count;
     }
     _total = offset;
+    final frameCount = widget.revealing ? _segments.length : 0;
+    while (_segmentFrames.length < frameCount) {
+      _segmentFrames.add(ValueNotifier<int>(0));
+    }
+    while (_segmentFrames.length > frameCount) {
+      _segmentFrames.removeLast().dispose();
+    }
+    _prepared = true;
+  }
+
+  Widget _buildSegment(BuildContext context, int index) {
+    final segment = _segments[index];
+    final spans = _rendered[index];
+    final start = _starts[index];
+    final end = start + _counts[index];
+    final revealing = widget.revealing && _motionEnabled;
+    final settled = _engine.revealedFloor >= _total && !_engine.tailStillFading;
+    final fading = revealing && widget.effect.animatesCharacters && !settled;
+    final revealed = revealing ? _engine.revealedFloor : _total;
+    final settledBelow = fading ? revealed - RevealEngine.fadeWindow : revealed;
+    final Widget paragraph;
+    if (end <= settledBelow) {
+      paragraph = _settled[(index, segment)] ??= _paragraph(spans);
+    } else {
+      paragraph = _paragraph(
+        applyReveal(
+          spans: spans,
+          revealed: revealed - start,
+          effect: widget.effect,
+          progressFor: (offset) => _engine.progressFor(start + offset),
+          defaultColor:
+              widget.config.style?.color ??
+              DefaultTextStyle.of(context).style.color ??
+              Theme.of(context).colorScheme.onSurface,
+          window: RevealEngine.fadeWindow,
+        ),
+      );
+    }
+    return _entrance(index, start, spans, paragraph);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _prepareDocument(context);
+    final gap = blockGap(context, widget.config);
 
     // A reader who has already seen this reply should not watch it type
     // itself out again — and the blocks it contains have no entrance left to
@@ -507,73 +804,20 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     // animation — one span per run, not one per character. Anything else keeps
     // a finished reply shaping as hundreds of separate runs, which moves its
     // wrapping and breaks a construct that styles a continuous stretch.
-    final settled = _engine.revealedFloor >= _total && !_engine.tailStillFading;
-    final fading = revealing && widget.effect.animatesCharacters && !settled;
+    _motionEnabled = revealing;
     final revealed = revealing ? _engine.revealedFloor : _total;
-    final settledBelow = fading ? revealed - RevealEngine.fadeWindow : revealed;
     final children = <Widget>[];
-    final liveSpans = <String, List<InlineSpan>>{};
-    final liveSettled = <String, Widget>{};
-
-    for (var i = 0; i < segments.length; i++) {
-      final segment = segments[i];
-      final start = starts[i];
-      final end = start + countRevealCharacters(spans[i]);
-
-      // The document ends where the reveal is.
-      if (start >= revealed) {
-        break;
-      }
-      liveSpans[segment] = spans[i];
-
-      final Widget child;
-      if (end <= settledBelow) {
-        // Settled: the paragraph is cached and handed back by identity, so
-        // Flutter skips its rebuild and relayout. The keyed entrance wrapper
-        // is applied per position, outside the cache: its child is identical
-        // build to build, so the subtree under it is still skipped, and two
-        // identical segments no longer share one key.
-        final paragraph =
-            liveSettled[segment] = _settled[segment] ?? _paragraph(spans[i]);
-        child = _entrance(i, start, spans[i], paragraph);
-      } else {
-        // The colour is resolved here and not before the loop on purpose:
-        // reading Theme and DefaultTextStyle registers an inherited
-        // dependency, and a dependency that fires drops the segment caches. A
-        // document that is not revealing must not pay that — it would rebuild
-        // every segment whenever an ancestor rebuilt.
-        child = _entrance(
-          i,
-          start,
-          spans[i],
-          _paragraph(
-            applyReveal(
-              spans: spans[i],
-              revealed: revealed - start,
-              effect: widget.effect,
-              progressFor: (index) => _engine.progressFor(start + index),
-              defaultColor:
-                  widget.config.style?.color ??
-                  DefaultTextStyle.of(context).style.color ??
-                  Theme.of(context).colorScheme.onSurface,
-              window: RevealEngine.fadeWindow,
-            ),
-          ),
-        );
-      }
-
-      if (i > 0) {
-        children.add(SizedBox(height: gap));
-      }
-      children.add(child);
+    final count = _visibleCount(revealed);
+    for (var i = 0; i < count; i++) {
+      children.add(
+        revealing
+            ? ValueListenableBuilder<int>(
+              valueListenable: _segmentFrames[i],
+              builder: (context, _, _) => _buildSegment(context, i),
+            )
+            : _buildSegment(context, i),
+      );
     }
-
-    _spans
-      ..clear()
-      ..addAll(liveSpans);
-    _settled
-      ..clear()
-      ..addAll(liveSettled);
 
     // The ticker is armed here rather than in `initState` because the target
     // is a property of the *rendered* document: how many characters a source
@@ -583,13 +827,20 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     //
     // Starting a ticker during build is safe: it schedules a callback, it does
     // not call back synchronously.
-    if (widget.revealing &&
+    if (revealing &&
         (_engine.revealedFloor < _total || _engine.tailStillFading)) {
       _startTicking();
+    } else if (!revealing) {
+      _stopTicking();
     }
 
-    return Column(
+    final column = Column(
       mainAxisSize: MainAxisSize.min,
+      // `spacing`, not a `SizedBox` between every pair. Interleaving gaps
+      // doubles the number of children the framework has to walk and lay out
+      // on every rebuild, and a streaming reply rebuilds on every chunk — a
+      // long answer was reconciling ~560 children where ~280 carry content.
+      spacing: gap,
       // start, not stretch: stretch forces every segment to the maximum width
       // the parent offers, so a two-word answer laid claim to the whole
       // column. The single-text pipeline sizes to its content, and so should
@@ -598,5 +849,59 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
     );
+    // Mid-reveal, the document is one live block of text rather than
+    // something to navigate: every block already on screen otherwise
+    // re-publishes its semantics on every frame, which is an announcement
+    // storm for anyone listening and, because an attached assistive service
+    // keeps the semantics pipeline alive, about half the per-chunk cost of a
+    // long reply.
+    //
+    // The gate is text observably still arriving — a reveal in flight, or a
+    // source that just grew by append and has not gone quiet. It is
+    // deliberately *not* `isStreaming`, which defaults to true and which
+    // hosts routinely leave on: tying it to the flag would collapse the
+    // semantics of every document that never touches it.
+    //
+    // Nothing is hidden while it holds: the text so far is the label. The
+    // structure — headings, links, list items as separate nodes — mounts the
+    // moment the reveal lands.
+    final animating =
+        _arriving ||
+        (revealing &&
+            (_engine.revealedFloor < _total || _engine.tailStillFading));
+    if (!animating) {
+      return column;
+    }
+    return Semantics(
+      container: true,
+      label:
+          MediaQuery.accessibleNavigationOf(context) ? _semanticsLabel() : null,
+      child: ExcludeSemantics(child: column),
+    );
+  }
+
+  /// The reply so far as one string, for [build]'s streaming semantics label.
+  ///
+  /// Per-segment text is cached alongside the spans it came from, so a chunk
+  /// only converts the segment it landed in.
+  String _semanticsLabel() {
+    final buffer = StringBuffer();
+    for (var index = 0; index < _segments.length; index++) {
+      final text =
+          _plainText[(index, _segments[index])] ??= TextSpan(
+            children: _rendered[index],
+          ).toPlainText(
+            includeSemanticsLabels: false,
+            includePlaceholders: false,
+          );
+      if (text.trim().isEmpty) {
+        continue;
+      }
+      if (buffer.isNotEmpty) {
+        buffer.write('\n');
+      }
+      buffer.write(text);
+    }
+    return buffer.toString();
   }
 }

@@ -37,7 +37,9 @@ InlinePattern chipPattern(RegExp pattern, {Set<MarkdownScope>? scopes}) {
 /// Concatenates the text of every [RichText] on screen.
 String allRichText(WidgetTester tester) {
   final buffer = StringBuffer();
-  for (final rt in tester.widgetList<RichText>(find.byType(RichText))) {
+  for (final rt in tester.widgetList<RichText>(
+    find.byWidgetPredicate((w) => w is RichText),
+  )) {
     buffer.write(rt.text.toPlainText(includePlaceholders: false));
   }
   return buffer.toString();
@@ -153,7 +155,9 @@ void main() {
         ),
       ]);
       // One paragraph, no placeholder — text and mention in the same RichText.
-      final rt = tester.widget<RichText>(find.byType(RichText).first);
+      final rt = tester.widget<RichText>(
+        find.byWidgetPredicate((w) => w is RichText).first,
+      );
       expect(rt.text.toPlainText(), 'ping @ada please');
     });
   });

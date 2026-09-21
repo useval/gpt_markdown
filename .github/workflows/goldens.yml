@@ -25,7 +25,9 @@ permissions:
 
 jobs:
   regenerate:
-    runs-on: ubuntu-latest
+    # Must stay identical to the `check` job in ci.yml. Generating on a
+    # different image than the one that compares them defeats the point.
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4

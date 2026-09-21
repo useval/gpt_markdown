@@ -6,11 +6,16 @@ Things that bite when writing widget tests against rendered Markdown.
 
 ## `find.text` rarely works
 
-Markdown renders as spans inside one paragraph, not as separate `Text` widgets.
-`find.text('hello')` only matches a `Text` whose entire `data` is `hello`.
+Markdown renders as spans inside one paragraph, not as separate `Text` widgets,
+so `find.text` has two ways to miss. It compares the string against a `Text`
+widget's whole text — its `data`, or the plain text of its span when the widget
+was built from one — so a fragment of a paragraph never matches. And a
+paragraph carrying a link or inline code is not a `Text` at all (see the next
+section), so no string finds it.
 
 ```dart
-// Fails, even though "hello" is on screen
+// GptMarkdown('**hello** world')
+// Fails: the paragraph's whole text is "hello world"
 expect(find.text('hello'), findsOneWidget);
 ```
 
@@ -31,17 +36,19 @@ expect(plainText(tester), contains('hello'));
 ```
 
 > [!TIP]
-> `find.text` **does** work for content inside a `WidgetSpan` — a chip from a
-> custom component, a code block, a table cell — because those are real `Text`
-> widgets.
+> `find.text` **does** work for content that renders as its own widget — a chip
+> from a custom component, a code block, a table cell — because each is a `Text`
+> of its own, so the string you pass is its whole text.
 
 ---
 
 ## `find.byType(RichText)` misses paragraphs
 
-Paragraphs carrying inline code, or needing right-to-left placeholder
+Paragraphs carrying a link or inline code, or needing right-to-left placeholder
 reordering, render through `BidiRichText` — a `RichText` **subclass**.
-`find.byType` matches exact runtime types.
+`find.byType` matches exact runtime types. A link puts a paragraph on that path
+too: its tap target is resolved by the paragraph's render object, not by a
+widget of its own.
 
 ```dart
 // Misses them
@@ -53,7 +60,8 @@ find.byWidgetPredicate((widget) => widget is RichText)
 
 > [!WARNING]
 > This one is nasty because it fails *selectively*. A test passes on plain
-> prose and fails the moment someone adds `` `code` `` to the fixture.
+> prose and fails the moment someone adds a link — or `` `code` `` — to the
+> fixture.
 
 ---
 
@@ -81,9 +89,15 @@ Styles, patterns and component lists **are** compared and do update live.
 
 ## Overflow warnings are expected at raised text scales
 
-Code blocks and long headings cannot wrap. At 2× or 3× on a phone-width surface
-they overflow horizontally, failing any assertion that
-`tester.takeException()` is null.
+Block maths cannot wrap, and does not scroll sideways unless
+`LatexStyle.scrollBlockHorizontally` is set. At 2× or 3× on a phone-width
+surface a wide formula reports `A RenderLine overflowed`, failing any assertion
+that `tester.takeException()` is null.
+
+Code blocks and tables are not what to suspect: both sit in a horizontal
+`SingleChildScrollView`, so they scroll and clip rather than report anything. A
+long heading wraps like any other paragraph, and paragraph overflow is painted
+rather than raised as an error, so it never reaches `takeException()` at all.
 
 Drain it deliberately rather than widening the surface until it hides:
 
@@ -163,7 +177,37 @@ Test reduced motion separately by wrapping the widget in a `MediaQuery` whose
 `disableAnimations` is true. The complete text should render without waiting
 for a ticker.
 
+### Assert semantics after the text goes quiet
+
+While the source is still growing by append, or a reveal is in flight, the
+whole document collapses to one container node and everything beneath it is
+excluded. A mid-stream `getSemantics` on a heading, a link or a list item finds
+no such node. The structure comes back 250 ms after the last chunk.
+
+```dart
+await tester.pumpWidget(app(text: 'See [the'));
+await tester.pumpWidget(app(text: 'See [the docs](https://example.com)'));
+await tester.pump();
+// One node, no link — a semantics assertion here fails for the wrong reason.
+
+// Going quiet is a timer. With no animation running there is no frame for
+// pumpAndSettle to wait on, so pump the delay explicitly.
+await tester.pump(const Duration(milliseconds: 300));
+```
+
+Turning `isStreaming` off does not open the tree either: the gate is growth the
+widget observed, precisely because that flag defaults to true and hosts
+routinely leave it on. The reply so far is still readable as the container's
+label, but only where `MediaQuery.accessibleNavigationOf` is true, so a test
+asserting on that label has to set `accessibleNavigation` itself.
+
 ### Check both parser paths when extending grammar
+
+`incremental` is deprecated in 1.3.0 — deleting it from application code is the
+migration. It stays useful in *tests*, which is why this recipe keeps it: it is
+the only way to drive both parsers over the same source. Expect a deprecation
+warning, and silence it with
+`// ignore: deprecated_member_use_from_same_package`.
 
 `incremental: true` is the default plusparse path; `false` selects the legacy
 renderer unless an animation forces span reveal. Parser or Markdown-syntax
@@ -194,8 +238,17 @@ height; `fadeIn`, `slideUp` and `scaleIn` reserve the final space immediately.
 ### Test code-copy feedback
 
 Mock `SystemChannels.platform` before tapping the built-in copy button. Assert
-that the copy icon changes to a check, ignores pointer input for the feedback
-period without adopting disabled colors, and returns after two seconds.
+that the copy icon changes to a check, that a second tap inside that window
+writes nothing further, and that the icon returns after two seconds.
+
+Do not assert that the button is disabled meanwhile — it deliberately stays
+enabled. Wrapping it in `IgnorePointer` or `AbsorbPointer` did not stop the tap
+reaching an ancestor, because an ancestor is already on the hit-test path; it
+only stopped the button claiming the gesture, so the second tap fell through to
+whatever wraps the code block, a tap-to-collapse in a chat UI. The
+duplicate-clipboard guard lives in `_copyCode` instead, so what is worth
+asserting is that `InkWell.onTap` stays non-null through the check-mark window
+and that the second tap reaches no surrounding handler.
 
 ---
 

@@ -237,7 +237,8 @@ void main() {
     /// Visible text -> its top edge, for every paragraph on screen.
     Map<String, double> positions(WidgetTester tester) {
       final out = <String, double>{};
-      for (final element in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
+      for (final element
+          in find.byWidgetPredicate((w) => w is RichText).evaluate()) {
         final text =
             (element.widget as RichText).text
                 .toPlainText(includePlaceholders: false)

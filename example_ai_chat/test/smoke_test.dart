@@ -25,7 +25,9 @@ void main() {
     );
     // A trailing slash, and a base that already carries the path, both work.
     expect(
-      base.copyWith(baseUrl: 'http://localhost:11434/v1/').chatCompletionsUri
+      base
+          .copyWith(baseUrl: 'http://localhost:11434/v1/')
+          .chatCompletionsUri
           .toString(),
       'http://localhost:11434/v1/chat/completions',
     );

@@ -1,166 +1,56 @@
-## Unreleased
+## 1.3.0
+
+Our biggest release yet.
+
+`gpt_markdown` 1.3.0 introduces a new rendering pipeline for fast,
+production-grade AI output. Parsing is **3–9× faster** than the legacy parser,
+whole-frame rendering is up to **2× faster**, and streaming performance stays
+flat as responses grow.
+
+At 12 KB, per-chunk streaming is **31× faster** with `GptMarkdown` and **74×
+faster** with `SliverGptMarkdown` compared with 1.2.1. See the
+[benchmarks](docs/benchmark.md).
+
+Nothing has been removed. Existing integrations continue to work, and
+deprecated APIs remain supported until 2.0.0.
 
 ### Added
 
-* Fenced code blocks now highlight recognized language tags with comprehensive
-  built-in light and dark palettes. Common aliases such as `js`, `ts`, `py`,
-  `python3`, `c++`, `sh`, and `yml` are supported; unknown or omitted languages
-  continue to render as plain code.
-* The default fenced-code panel now uses one seamless rounded surface with a
-  compact language pill and icon-only copy action—there is no divider competing
-  with chat-bubble layouts. The copy icon briefly changes to a check mark, and
-  existing copy labels remain accessible, localisable tooltips.
-  The action ignores taps while copying and for the full check-mark state—while
-  retaining its normal colour—so rapid taps cannot queue duplicate clipboard
-  writes or callbacks.
-  Unlabelled fences display `Code` in the language pill instead of leaving it
-  visually empty.
-* **A new parser.** `GptMarkdown(text, incremental: true)` renders through
-  plusparse — a single-pass character scanner producing a real AST — instead of
-  the recursive combined-regex pipeline. Same widgets, same theming, same
-  builder hooks; the two are kept in step by a parity test suite. Measured
-  against the regex pipeline on the same input: **20x** on a line of dense
-  inline syntax, **32x** on a typical reply, **54x** on a 35 KB document, and
-  **69x** re-parsing a reply as it streams.
-* **Segment caching for streaming.** In `incremental` mode a document is split
-  at blank lines and each segment is cached, so appending to a reply rebuilds
-  only the tail. Rebuild cost stops growing with the answer: **4.6x** less work
-  over 30 appends, and flat rather than rising.
-* **Character-level reveal animations.** `animation:` takes
-  `GptMarkdownAnimation.typewriter`, `.fade`, `.blurIn` and `.wave` beside
-  `.none`. Each character is stamped when it arrives and styled by how far
-  through its entrance it is, so the head of the stream is a soft ramp.
-* **Block entrance animations.** `blockAnimation:` takes
-  `GptMarkdownBlockAnimation.fadeIn`, `.growIn`, `.slideUp`, `.scaleIn` and
-  `.none`, for constructs with no half-state to reveal — tables, fenced code,
-  block maths, rules. Separate from `animation:` so the two compose. Only
-  `.growIn` changes the space a block occupies while it plays.
-* `revealFadeSeconds:`, `blockAnimationDuration:` and `blockAnimationCurve:` to
-  tune both axes.
-* `InlineDirective` — a delimited region the parser does not look inside, for
-  host content that is not Markdown. Unlike `InlinePattern`, which matches over
-  the text a parse produced, a directive is lifted out before parsing, so a
-  payload containing `**`, backticks, `~~` or `[…](…)` arrives verbatim.
+* **`plusparse`** — a new single-pass parser, enabled by default.
+* **`SliverGptMarkdown`** — lazy rendering for long documents and streaming
+  responses.
+* **Streaming animations** — character reveals and block entrances with
+  configurable timing and curves.
+* **Modern extension APIs** for custom block and inline syntax.
+* **Span-based builders** for links, citations, and inline code.
+* **Syntax highlighting for nearly 200 languages**, with a language label and
+  accessible copy button.
 
 ### Changed
 
-* **`incremental` now defaults to `true`**, so the single-pass parser is the
-  default renderer. It lays out correctly where the regex pipeline does not —
-  no spurious line after a fenced block — and is 20x to 69x faster. Pass
-  `incremental: false` for the old pipeline. Custom
-  `components`/`inlineComponents` still select it automatically.
-
-* The reveal styles spans that are already built rather than re-slicing the
-  source each frame, so a document is rendered once per text change and a frame
-  restyles only the characters still arriving. Custom
-  `components`/`inlineComponents` keep the older path.
-* Content past the reveal head is no longer built, so nothing appears below the
-  reading position before it is meant to be seen.
-* `RevealEngine.tick` returns true until the last character has finished its
-  entrance, not merely until the reveal has caught up.
+* Links now wrap naturally, align with surrounding text, and remain selectable.
+* Block elements render independently, improving selection, scaling, and
+  bidirectional layouts.
 
 ### Fixed
 
-* `***both***` renders as bold *and* italic, and `*italic **bold** italic*`
-  keeps its bold. Emphasis is now decided by the length of the run of
-  asterisks: reading `***` as `**` from the second asterisk left a stray `*`
-  inside the bold, and closing a single `*` with the next asterisk found landed
-  on the opening half of a nested `**`, dropping the bold and cutting the
-  italic into three.
-* `InlinePattern` beats the built-in reading of the same text on the
-  incremental pipeline, as it always has on the regex one — a pattern for
-  `**bold**` renders the pattern, not emphasis. Matches are lifted out before
-  parsing and put back at render, because once there is a tree there is no
-  text left for a pattern to claim. Scope filtering is preserved, and a pattern
-  no longer reaches inside fenced code or block maths.
+* `maxLines` now limits the complete document, and paragraph line breaks are
+  preserved.
+* Lists, quotes, tables, code blocks, images, and mathematics scale and style
+  consistently.
+* Streaming accessibility no longer produces repeated announcement storms.
+* Fixed numerous parsing, reveal-ordering, and streaming-stability issues.
 
-* Changing `animation:` no longer changes how the document is parsed. Every
-  animating effect forces the incremental pipeline, so with the default
-  `incremental: false` only `GptMarkdownAnimation.none` still went through the
-  regex pipeline — which wraps text differently and leaves an extra line after
-  a fenced block. Set `incremental: true` and every effect, `none` included,
-  lays out identically; the example's streaming demo now pins it.
+### Deprecated
 
-* An animated reveal no longer leaves the document split one span per
-  character. `settledBelow` trailed the head by a fixed window forever, so even
-  a finished reply kept its last 64 characters as individual spans. Flutter
-  shapes each style run separately, so that changed how text kerned and wrapped
-  against `GptMarkdownAnimation.none`, and broke a construct styling a
-  continuous stretch — an inline code chip — into pieces. Characters needing no
-  style of their own now coalesce, and a reveal that has caught up collapses
-  back to exactly the spans it started from.
+The legacy regex parser remains fully functional, with removal planned
+for 2.0.0.
 
-* Streamed text no longer restyles after the reader has seen it. A construct is
-  literal text until its closing delimiter arrives, so `` `npm install` ``
-  appeared as prose and turned into a monospace chip a moment later, reflowing
-  the line around it — the same for `**bold**`, `*italic*`, `~~strike~~`,
-  `<u>…</u>`, `\( … \)` and `[label](href)`. The reveal now waits behind an
-  unterminated construct, so a character is in its final form when it appears.
-  A delimiter that never closes — a lone backtick, a footnote asterisk — is
-  taken for prose after a short run rather than stalling the reveal.
+The `incremental` argument is no longer needed. Replace `components` and
+`inlineComponents` with `blockComponents`, `inlinePatterns`, or
+`inlineDirectives`.
 
-* `|` inside inline maths, a code span, or escaped as `\|` no longer ends a
-  table cell — `| Modulus (\(|z|\)) |` was three columns.
-* GFM task lists (`- [x] done`) render as checkboxes, as do `- ( ) choice`
-  radios and ordered items. The marker used to survive as literal text, and the
-  checkbox sat a blank line below its own bullet.
-* Block maths in a list item renders as maths. `1. \[` with the body on the
-  lines below left `\[` literal and leaked the body out of the list.
-* `\[ ... \]` is recognised mid-sentence too, still rendering as a block. Text
-  on either side is preserved.
-* The reveal reaches inside headings, lists, task lists, checkboxes, radios and
-  block quotes. Those render as widgets, and a widget was one opaque character
-  to the reveal, so they arrived whole however `animation:` was set.
-* `incremental` no longer forces content to the full width offered — a two-word
-  answer claimed the whole column. Constructs that genuinely fill the width
-  still do.
-* Streaming no longer shifts settled content down by a block gap when the
-  reveal advances past it, or again when the reply completes.
-* `settledSplitOffset` no longer moves backward as text arrives.
-* The inline-code chip paints while its paragraph is still animating. The chip
-  is drawn for spans tagged `CodeTextSpan`, and the reveal rebuilt every span
-  as a plain `TextSpan` — so the code text sat bare, in the right monospace,
-  until the whole segment settled (1.8 s after the text on the demo reply),
-  then the chrome popped in at once and popped back out on the next chunk.
-  Settled spans now pass through the reveal as their original objects, and a
-  partially revealed code span keeps its tag via `CodeTextSpan.revealing`.
-* Fading text no longer jitters the words around it. Each mid-fade character
-  was its own span, and Flutter shapes each span as its own run — kerning and
-  ligatures broke at boundaries that moved every frame, so on a proportional
-  font wrap points flickered near the head. The fading effects now style whole
-  words (`wave` still travels letter by letter, its point), so a style
-  boundary only ever falls on whitespace.
-* The reveal never moves backwards. A construct opening late — `[the docs]`
-  closing as prose and then `(` arriving — pulled the visible tail back behind
-  the opener: text the reader had read vanished for the length of the hold,
-  and on its return the engine re-stamped it and replayed its fade, blinking
-  characters half a window behind the head. The hold now only advances, and
-  the engine holds its head and marks everything beneath it settled when the
-  target shrinks.
-* Scrolling back to a streamed reply no longer replays it. Reveal progress and
-  the blocks' one-shot entrances lived in element state, so a lazy list
-  disposing an item and re-inflating it on scroll-back re-typed the whole
-  message from nothing (with `isStreaming` still true) and re-ran every
-  table's and fence's entrance from opacity zero. Content already present at
-  mount now appears whole and plays no entrance; only text arriving after
-  mount animates.
-* A finished block entrance keeps its (paint-free) wrapper instead of swapping
-  to the bare child, which changed the widget type and re-inflated the block's
-  subtree once, mid-stream.
-* Two identical blocks — two rules, two identical fences — no longer collide
-  on one entrance key. The cached widget carried its position key inside the
-  content-keyed cache, a duplicate-keys crash in debug builds.
-* A fence glued to a paragraph with no blank line streams its body. The inline
-  hold read the fence's own backticks as inline delimiters and withheld the
-  entire code block until it closed.
-* With `useDollarSignsForLatex`, an equation closing no longer blanks and
-  re-types the message. The `$…$` → `\(…\)` rewrite edits the text
-  retroactively, which failed the append-only check and reset the reveal; an
-  edit confined to the tail now carries on from where it was. An unpaired `$`
-  is also held rather than shown as prose it will not stay.
-* A chunk ending in the first half of an opener — `\` before `\(`, `<` before
-  `<u>` — is held until the next character decides it, instead of being shown
-  and then vanishing.
+See [MIGRATION.md](MIGRATION.md) for complete upgrade guidance.
 
 ## 1.2.1
 
@@ -317,7 +207,7 @@ Upgrading from 1.1.x? See [MIGRATION.md](MIGRATION.md).
 
 ## 1.1.8
 
-* 🔗 Fixed consecutive links separated by single newlines not rendering ([#142](https://github.com/Infinitix-LLC/gpt_markdown/issues/142)).
+* 🔗 Fixed consecutive links separated by single newlines not rendering ([#142](https://github.com/useval/gpt_markdown/issues/142)).
 
 ## 1.1.7
 
@@ -344,10 +234,10 @@ Upgrading from 1.1.x? See [MIGRATION.md](MIGRATION.md).
 
 ## 1.1.4
 
-* 🔗 Fixed vertical alignment issue with link text rendering ([#92](https://github.com/Infinitix-LLC/gpt_markdown/issues/92))
-* 📝 Resolved "null" rendering issue in ordered lists with multiple spaces and line breaks ([#89](https://github.com/Infinitix-LLC/gpt_markdown/issues/89))
-* 🧹 Removed erroneous `trim()` from `CodeBlockMd` to preserve necessary whitespace in code blocks ([#99](https://github.com/Infinitix-LLC/gpt_markdown/issues/99))
-* 🎨 Fixed heading style customization issue where custom colors in heading styles were not being applied ([#95](https://github.com/Infinitix-LLC/gpt_markdown/issues/95))
+* 🔗 Fixed vertical alignment issue with link text rendering ([#92](https://github.com/useval/gpt_markdown/issues/92))
+* 📝 Resolved "null" rendering issue in ordered lists with multiple spaces and line breaks ([#89](https://github.com/useval/gpt_markdown/issues/89))
+* 🧹 Removed erroneous `trim()` from `CodeBlockMd` to preserve necessary whitespace in code blocks ([#99](https://github.com/useval/gpt_markdown/issues/99))
+* 🎨 Fixed heading style customization issue where custom colors in heading styles were not being applied ([#95](https://github.com/useval/gpt_markdown/issues/95))
 
 ## 1.1.3
 
@@ -356,7 +246,7 @@ Upgrading from 1.1.x? See [MIGRATION.md](MIGRATION.md).
 
 ## 1.1.2
 
-* 📊 Fixed table column alignment support ([#65](https://github.com/Infinitix-LLC/gpt_markdown/issues/65))
+* 📊 Fixed table column alignment support ([#65](https://github.com/useval/gpt_markdown/issues/65))
 * 🎨 Added `tableBuilder` parameter to customize table rendering
 * 🔗 Fixed text decoration color of link markdown component
 
@@ -371,7 +261,7 @@ Upgrading from 1.1.x? See [MIGRATION.md](MIGRATION.md).
 
 ## 1.0.20
 
-* Fix: support balanced parentheses in image and link URLs. [#68](https://github.com/Infinitix-LLC/gpt_markdown/pull/68)
+* Fix: support balanced parentheses in image and link URLs. [#68](https://github.com/useval/gpt_markdown/pull/68)
 
 ## 1.0.19
 
@@ -403,7 +293,7 @@ Upgrading from 1.1.x? See [MIGRATION.md](MIGRATION.md).
 
 ## 1.0.13
 
-* Fixed issue [#49](https://github.com/Infinitix-LLC/gpt_markdown/issues/49).
+* Fixed issue [#49](https://github.com/useval/gpt_markdown/issues/49).
 
 ## 1.0.12
 
@@ -433,7 +323,7 @@ Upgrading from 1.1.x? See [MIGRATION.md](MIGRATION.md).
 ## 1.0.6
 
 * `_italic_` and `>Indentation` syntax added.
-* `linkBuilder` and `highlightBuilder` added [f45132b](https://github.com/Infinitix-LLC/gpt_markdown/commit/f45132b2cd4b069d3e5703561deb5c7e51d3c560).
+* `linkBuilder` and `highlightBuilder` added [f45132b](https://github.com/useval/gpt_markdown/commit/f45132b2cd4b069d3e5703561deb5c7e51d3c560).
 
 ## 1.0.5
 

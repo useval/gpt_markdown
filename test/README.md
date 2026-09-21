@@ -279,7 +279,7 @@ Once a bug is fixed, move the test to `test/regression/` with this format:
 **Filename**: `issue_<number>_<brief_description>_test.dart`
 
 ```dart
-// Regression test for: https://github.com/Infinitix-LLC/gpt_markdown/issues/42
+// Regression test for: https://github.com/useval/gpt_markdown/issues/42
 //
 // Bug: Nested bold and italic text was not rendering correctly
 // when bold was the outer wrapper.

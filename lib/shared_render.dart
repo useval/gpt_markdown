@@ -48,6 +48,7 @@ Widget checkboxWidget(
     return builder(context, checked, label, style);
   }
   return CustomCb(
+    scalesItsOwnText: config.blocksRenderDirectly,
     value: checked,
     textDirection: config.textDirection,
     spacing: style.gapAfterBox ?? 5,
@@ -73,6 +74,7 @@ Widget radioWidget(
     return builder(context, selected, label, style);
   }
   return CustomRb(
+    scalesItsOwnText: config.blocksRenderDirectly,
     value: selected,
     textDirection: config.textDirection,
     spacing: style.gapAfterBox ?? 5,
@@ -95,6 +97,9 @@ Widget headingWidget(
   required int level,
   required List<InlineSpan> Function(GptMarkdownConfig conf) buildChildren,
 }) {
+  // A heading lifted out of the paragraph has to scale itself, from the
+  // ambient MediaQuery; inside one, the paragraph already did it.
+  final ambient = config.blocksRenderDirectly;
   final theme = GptMarkdownTheme.of(context);
   final headingStyle = (resolvedStyleSheet(context, config).heading ??
           const HeadingStyle())
@@ -112,12 +117,16 @@ Widget headingWidget(
 
   final builder = config.headingBuilder;
   if (builder != null) {
-    final content = config.getRich(TextSpan(children: buildChildren(conf)));
+    final content = config.getRich(
+      TextSpan(children: buildChildren(conf)),
+      ambientScaling: ambient,
+    );
     return builder(context, level, content, headingStyle);
   }
 
   final dividerPadding = headingStyle.dividerPadding;
   final rich = config.getRich(
+    ambientScaling: ambient,
     TextSpan(
       children: [
         ...buildChildren(conf),
@@ -183,11 +192,11 @@ InlineSpan blockQuoteSpan(
 
   return TextSpan(
     children: [
-      scaledWidgetSpan(
-        config: config,
+      BlockWidgetSpan(
         alignment: PlaceholderAlignment.bottom,
         baseline: null,
-        child: quote,
+        child: MarkdownTextScaling.wrap(quote, enabled: false),
+        bare: quote,
       ),
     ],
   );
@@ -230,57 +239,118 @@ Widget defaultQuoteWidget(
   return Directionality(textDirection: direction, child: child);
 }
 
-/// A citation tag such as `[1]`, honouring [GptMarkdownConfig.sourceTagBuilder],
-/// [SourceTagStyle] and [GptMarkdownConfig.onSourceTagTap].
+/// A placeholder holding a *block* construct rather than an inline one.
+///
+/// The difference matters to whoever is laying the document out. A block owns
+/// its line and can be lifted out of the paragraph entirely — rendered as a
+/// sibling widget, skipping both the placeholder and the nested `Text.rich`
+/// inside it. An inline image or equation cannot: it is positioned against a
+/// text baseline that would no longer exist.
+///
+/// Marked explicitly because the two are indistinguishable by shape — an image
+/// and a block quote are both a lone bottom-aligned `WidgetSpan`, and telling
+/// them apart by looking silently swallowed every image in the document.
+class BlockWidgetSpan extends WidgetSpan {
+  /// Wraps a block-level [child].
+  const BlockWidgetSpan({
+    required super.child,
+    this.bare,
+    super.alignment,
+    super.baseline,
+    super.style,
+  });
+
+  /// [child] without the flex wrapper a placeholder needs, for a caller that
+  /// is about to render this block as a sibling widget instead of inside a
+  /// paragraph.
+  ///
+  /// Inside a paragraph the wrapper earns its keep. Rendered directly it is
+  /// two render objects per block that resolve to the same constraints the
+  /// column already hands down, and paint walks every one of them on every
+  /// frame — which a streaming reply pays for on every chunk.
+  final Widget? bare;
+}
+
+/// A citation tag such as `[1]`, honouring
+/// [GptMarkdownConfig.inlineSourceTagBuilder], [SourceTagStyle] and
+/// [GptMarkdownConfig.onSourceTagTap].
 InlineSpan sourceTagSpan(
   BuildContext context,
   String id,
   GptMarkdownConfig config,
 ) {
-  final style = (resolvedStyleSheet(context, config).sourceTag ??
+  final tagStyle = (resolvedStyleSheet(context, config).sourceTag ??
           const SourceTagStyle())
       .resolve(Theme.of(context).colorScheme);
-  final size = style.size ?? 20;
-  Widget chip =
-      config.sourceTagBuilder?.call(
-        context,
-        id,
-        style.textStyle ?? const TextStyle(),
-      ) ??
-      SizedBox(
-        width: size,
-        height: size,
-        child: Material(
-          color:
-              style.backgroundColor ??
-              Theme.of(context).colorScheme.onInverseSurface,
-          shape:
-              style.shape == BoxShape.rectangle
-                  ? const RoundedRectangleBorder()
-                  : const OvalBorder(),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              id,
-              style: style.textStyle,
-              textDirection: config.textDirection,
-            ),
-          ),
-        ),
-      );
+  final onSourceTagTap = config.onSourceTagTap;
+  final onTap = onSourceTagTap == null ? null : () => onSourceTagTap(id);
 
-  final onTap = config.onSourceTagTap;
-  if (onTap != null) {
-    chip = GestureDetector(onTap: () => onTap(id), child: chip);
+  final details = SourceTagBuildDetails(
+    context: context,
+    config: config,
+    // The resolved style, not `const TextStyle()`. `SourceTagStyle.textStyle`
+    // documents itself as defaulting to the surrounding style; now it does.
+    style: tagStyle.textStyle ?? config.style ?? const TextStyle(),
+    id: id,
+    sourceTagStyle: tagStyle,
+    onTap: onTap,
+  );
+
+  final builder = config.inlineSourceTagBuilder;
+  if (builder != null) {
+    final span = builder(details);
+    assert(
+      onTap == null ||
+          span.toPlainText(includePlaceholders: false).isEmpty ||
+          _hasReachableTap(span),
+      'inlineSourceTagBuilder returned a span with nothing that can be tapped '
+      'for "$id". Return details.defaultSpan(), a TappableTextSpan, or '
+      'details.asWidgetSpan() for a widget.',
+    );
+    return span;
   }
 
-  return scaledWidgetSpan(
-    config: config,
-    alignment: PlaceholderAlignment.middle,
-    baseline: null,
-    child: Padding(
-      padding: style.padding ?? const EdgeInsets.all(2),
-      child: chip,
+  // ignore: deprecated_member_use_from_same_package
+  final legacyBuilder = config.sourceTagBuilder;
+  if (legacyBuilder != null) {
+    // Kept so 1.2.x code compiles, including the empty TextStyle it has always
+    // been handed — that is what existing builders were written against.
+    return details.asWidgetSpan(
+      legacyBuilder(context, id, tagStyle.textStyle ?? const TextStyle()),
+    );
+  }
+
+  return defaultSourceTagSpan(details);
+}
+
+/// The stock `[1]` chip: a filled circle with the number scaled to fit.
+///
+/// Split out so [SourceTagBuildDetails.defaultSpan] can return it, and so a
+/// builder that only wants to wrap the stock chip does not have to restate it.
+InlineSpan defaultSourceTagSpan(SourceTagBuildDetails details) {
+  final style = details.sourceTagStyle;
+  final size = style.size ?? 20;
+  return details.asWidgetSpan(
+    SizedBox(
+      width: size,
+      height: size,
+      child: Material(
+        color:
+            style.backgroundColor ??
+            Theme.of(details.context).colorScheme.onInverseSurface,
+        shape:
+            style.shape == BoxShape.rectangle
+                ? const RoundedRectangleBorder()
+                : const OvalBorder(),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            details.id,
+            style: style.textStyle,
+            textDirection: details.config.textDirection,
+          ),
+        ),
+      ),
     ),
   );
 }
@@ -299,8 +369,10 @@ Widget codeBlockWidget(
       .resolve(Theme.of(context).colorScheme);
   return config.codeBuilder?.call(context, name, code, closed) ??
       CodeField(
+        scalesItsOwnText: config.blocksRenderDirectly,
         name: name,
         codes: code,
+        highlightCode: closed || (style.highlightWhileStreaming ?? true),
         style: style,
         onCopy: config.onCodeCopy,
       );
@@ -324,6 +396,7 @@ Widget unorderedListItem(
       DefaultTextStyle.of(context).style.fontSize ??
       kDefaultFontSize;
   return UnorderedListView(
+    scalesItsOwnText: config.blocksRenderDirectly,
     bulletColor:
         style.bulletColor ??
         config.style?.color ??
@@ -331,6 +404,7 @@ Widget unorderedListItem(
     padding: style.indent ?? 7,
     spacing: style.gapAfterMarker ?? 10,
     bulletSize: style.bulletSize ?? 0.3 * fontSize,
+    bulletShape: style.bulletShape ?? BoxShape.circle,
     textDirection: config.textDirection,
     child: child,
   );
@@ -355,6 +429,7 @@ Widget orderedListItem(
     fontWeight: FontWeight.w100,
   );
   return OrderedListView(
+    scalesItsOwnText: config.blocksRenderDirectly,
     no: "$no.",
     textDirection: config.textDirection,
     style: marker == null ? base : base.merge(marker),
@@ -375,6 +450,14 @@ InlineSpan imageSpan(
   double? width,
   double? height,
 }) {
+  // Resolved before the image is built, not after: `fit` decides how the
+  // bytes are drawn, so it has to be in hand at construction time. It used to
+  // be resolved below, purely for the border and padding, which is why `fit`,
+  // `maxWidth` and `maxHeight` were settable and inert.
+  final imageStyle = (resolvedStyleSheet(context, config).image ??
+          const ImageStyle())
+      .resolve(Theme.of(context).colorScheme);
+
   final builder = config.imageBuilder;
   final Widget image;
   if (builder != null) {
@@ -397,16 +480,27 @@ InlineSpan imageSpan(
                     : loadingProgress.cumulativeBytesLoaded / total,
           );
         },
-        fit: BoxFit.fill,
+        fit: imageStyle.fit ?? BoxFit.fill,
         errorBuilder: (context, error, stackTrace) => const CustomImageError(),
       ),
     );
   }
 
-  final imageStyle = (resolvedStyleSheet(context, config).image ??
-          const ImageStyle())
-      .resolve(Theme.of(context).colorScheme);
   Widget decorated = image;
+  // A ceiling, not a size: an image smaller than the bound keeps its own
+  // dimensions. Applied before the rounding and padding so the clip follows
+  // the constrained box rather than the original.
+  final maxWidth = imageStyle.maxWidth;
+  final maxHeight = imageStyle.maxHeight;
+  if (maxWidth != null || maxHeight != null) {
+    decorated = ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: maxWidth ?? double.infinity,
+        maxHeight: maxHeight ?? double.infinity,
+      ),
+      child: decorated,
+    );
+  }
   final imageRadius = imageStyle.borderRadius;
   if (imageRadius != null) {
     decorated = ClipRRect(
@@ -458,9 +552,12 @@ Widget latexWidget(
                 color:
                     config.style?.color ??
                     Theme.of(context).colorScheme.onSurface,
-                fontSize:
-                    config.style?.fontSize ??
-                    Theme.of(context).textTheme.bodyMedium?.fontSize,
+                fontSize: MarkdownTextScaling.fontSize(
+                  context,
+                  textStyle.fontSize ??
+                      Theme.of(context).textTheme.bodyMedium?.fontSize ??
+                      14,
+                ),
                 mathFontOptions: FontOptions(
                   fontFamily: "Main",
                   fontWeight: config.style?.fontWeight ?? FontWeight.normal,
@@ -492,11 +589,19 @@ Widget latexWidget(
       .resolve(Theme.of(context).colorScheme);
   final override = latexStyle.textStyle;
   final base = config.style ?? const TextStyle();
-  Widget maths = builder(
-    context,
-    workaround(tex),
-    override == null ? base : base.merge(override),
-    inline,
+  // Build below the boundary so custom builders and the math engine read the
+  // effective scaler, including when this formula is nested inside a block.
+  Widget maths = MarkdownTextScaling.wrap(
+    Builder(
+      builder:
+          (mathContext) => builder(
+            mathContext,
+            workaround(tex),
+            override == null ? base : base.merge(override),
+            inline,
+          ),
+    ),
+    enabled: !inline && config.blocksRenderDirectly,
   );
   if (inline) {
     return maths;
@@ -525,4 +630,77 @@ Widget latexWidget(
     maths = Padding(padding: padding, child: maths);
   }
   return maths;
+}
+
+/// Owns the horizontal scroll state of one mounted table.
+class _TableViewport extends StatefulWidget {
+  const _TableViewport({required this.child});
+  final Widget child;
+  @override
+  State<_TableViewport> createState() => _TableViewportState();
+}
+
+class _TableViewportState extends State<_TableViewport> {
+  final _controller = ScrollController();
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// The strip reserved under the table for the bar, and the bar's own
+  /// thickness — the same number, so the bar fills the strip exactly. Material
+  /// would otherwise hold a 2px `crossAxisMargin` off the edge, leaving a gap
+  /// under the bar; that is set to zero below.
+  static const double _barStrip = 8;
+
+  @override
+  Widget build(BuildContext context) {
+    // A horizontal scrollable never gets a scrollbar from the ambient
+    // behaviour — `MaterialScrollBehavior.buildScrollbar` returns the child
+    // unchanged for `Axis.horizontal` on every platform — so this widget is
+    // the only reason one appears, and it is on us to decide where.
+    //
+    // On a touch device, nowhere: a finger already knows how to drag a table
+    // sideways, and the bar has no gesture of its own to offer. Drawn, it
+    // overlaps the bottom row, because a scrollbar paints inside the viewport
+    // it belongs to.
+    switch (Theme.of(context).platform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return SingleChildScrollView(
+          controller: _controller,
+          scrollDirection: Axis.horizontal,
+          child: widget.child,
+        );
+      case TargetPlatform.linux:
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+        // A pointer has no such affordance, so the bar earns its place — but
+        // it gets a strip of its own rather than the last row's. The strip is
+        // exactly the bar's height: no gap under it.
+        return ScrollbarTheme(
+          // `crossAxisMargin` is not a `Scrollbar` argument; it only reaches
+          // the painter through the theme. Material defaults it to 2, which
+          // holds the bar off the viewport edge and leaves a gap beneath it.
+          data: ScrollbarThemeData(
+            crossAxisMargin: 0,
+            mainAxisMargin: 0,
+            thickness: const WidgetStatePropertyAll<double>(_barStrip),
+          ),
+          child: Scrollbar(
+            controller: _controller,
+            child: SingleChildScrollView(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: _barStrip),
+                child: widget.child,
+              ),
+            ),
+          ),
+        );
+    }
+  }
 }

@@ -15,6 +15,8 @@ library;
 
 import 'ast.dart';
 import 'block_parser.dart';
+import 'block_syntax.dart';
+export 'block_syntax.dart';
 
 export 'ast.dart';
 export 'stream_splitter.dart';
@@ -32,7 +34,8 @@ class Plusparse {
   static MdDocument parse(
     String markdown, {
     bool useDollarSignsForLatex = false,
+    MarkdownBlockRegistry? blockRegistry,
   }) {
-    return parseDocument(markdown, useDollarSignsForLatex);
+    return parseDocument(markdown, useDollarSignsForLatex, blockRegistry);
   }
 }

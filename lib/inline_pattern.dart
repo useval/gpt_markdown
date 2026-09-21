@@ -8,6 +8,9 @@ part of 'gpt_markdown.dart';
 /// Returning a [TextSpan] keeps the content inside the surrounding paragraph —
 /// it stays selectable, wraps across lines, and sits on the text baseline.
 /// Return a [WidgetSpan] only when the content genuinely needs a widget.
+/// Widget children inherit disabled text scaling because the enclosing
+/// paragraph scales their entire box. Use [style] at its original font size;
+/// do not multiply it by the ambient text scale in the builder.
 typedef InlinePatternBuilder =
     InlineSpan Function(
       BuildContext context,
@@ -287,20 +290,35 @@ class InlinePatternMd extends InlineMd {
       match,
       config.style ?? const TextStyle(),
     );
-    if (span is WidgetSpan) {
-      // A paragraph lays inline widgets out in scaled space — it hands them
-      // `maxWidth / scale` and multiplies the reported size back — so a widget
-      // that also scales its own text is counted twice. Every placeholder the
-      // package builds opts out of scaling; consumer chips get the same
-      // treatment, so they grow at the same rate as the text beside them
-      // rather than several times faster.
-      return WidgetSpan(
-        alignment: span.alignment,
-        baseline: span.baseline,
-        style: span.style,
-        child: MediaQuery.withNoTextScaling(child: span.child),
-      );
-    }
-    return span;
+    return _scaleInlineSpanWidgets(span);
   }
+}
+
+// The enclosing paragraph scales placeholders. Disable the child's ambient
+// scaling in both parser pipelines, including widgets nested in a TextSpan.
+InlineSpan _scaleInlineSpanWidgets(InlineSpan span) {
+  if (span is WidgetSpan) {
+    return WidgetSpan(
+      alignment: span.alignment,
+      baseline: span.baseline,
+      style: span.style,
+      child: MarkdownTextScaling.wrap(span.child, enabled: false),
+    );
+  }
+  if (span is TextSpan && span.children != null) {
+    return TextSpan(
+      text: span.text,
+      style: span.style,
+      children: span.children!.map(_scaleInlineSpanWidgets).toList(),
+      recognizer: span.recognizer,
+      mouseCursor: span.mouseCursor,
+      onEnter: span.onEnter,
+      onExit: span.onExit,
+      semanticsLabel: span.semanticsLabel,
+      semanticsIdentifier: span.semanticsIdentifier,
+      locale: span.locale,
+      spellOut: span.spellOut,
+    );
+  }
+  return span;
 }
