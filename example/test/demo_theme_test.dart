@@ -3,7 +3,7 @@ import 'package:example/inline_code_demo.dart';
 import 'package:example/inline_patterns_demo.dart';
 import 'package:example/main.dart';
 import 'package:example/selection_demo.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Every demo starts light and flips to dark from its app bar.

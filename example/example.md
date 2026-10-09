@@ -10,7 +10,7 @@ Run `flutter run` in `example/` for the interactive demos.
 ## 1. Getting started
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 class AnswerView extends StatelessWidget {

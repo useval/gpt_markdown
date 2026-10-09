@@ -1,7 +1,7 @@
 import 'markdown_text_scaling.dart';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 
 /// A custom widget that displays an unordered list of items.
@@ -89,12 +89,12 @@ class OrderedListView extends StatelessWidget {
     super.key,
     this.spacing = 6,
     this.padding = 6,
-    TextStyle? style,
+    this._style,
     required this.child,
     this.textDirection = TextDirection.ltr,
     this.scalesItsOwnText = false,
     required this.no,
-  }) : _style = style;
+  });
 
   /// Whether this item has to scale its own text. See
   /// [UnorderedListView.scalesItsOwnText].
@@ -273,25 +273,16 @@ class _HangingItem extends SingleChildRenderObjectWidget {
 
 class _RenderHangingItem extends RenderShiftedBox {
   _RenderHangingItem({
-    required double leading,
-    required double trailing,
-    required TextDirection textDirection,
-    required _BulletMetrics metrics,
-    required TextScaler textScaler,
-    required double dotSize,
-    required Color? dotColor,
-    required BoxShape dotShape,
-    required InlineSpan? markerSpan,
-  }) : _leading = leading,
-       _trailing = trailing,
-       _textDirection = textDirection,
-       _metrics = metrics,
-       _textScaler = textScaler,
-       _dotSize = dotSize,
-       _dotColor = dotColor,
-       _dotShape = dotShape,
-       _markerSpan = markerSpan,
-       super(null);
+    required this._leading,
+    required this._trailing,
+    required this._textDirection,
+    required this._metrics,
+    required this._textScaler,
+    required this._dotSize,
+    required this._dotColor,
+    required this._dotShape,
+    required this._markerSpan,
+  }) : super(null);
 
   double _leading;
   set leading(double value) {

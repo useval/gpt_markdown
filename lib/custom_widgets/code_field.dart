@@ -1,5 +1,5 @@
 import 'markdown_text_scaling.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:val_highlight/languages/all.dart';
 import 'package:val_highlight/themes/dark.dart';

@@ -10,7 +10,7 @@ library;
 
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// How newly arrived text appears.
 ///

@@ -6,7 +6,7 @@
 /// layout, and every block below it moves at once.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'reveal_effect.dart';
 

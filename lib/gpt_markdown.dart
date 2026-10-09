@@ -1,6 +1,6 @@
 import 'custom_widgets/markdown_text_scaling.dart';
 export 'custom_widgets/markdown_text_scaling.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:gpt_markdown/custom_widgets/markdown_config.dart';
 
 // `GptMarkdownConfig` and the builder typedefs are part of the public API —

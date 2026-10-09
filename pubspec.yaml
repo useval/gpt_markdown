@@ -6,13 +6,14 @@ repository: https://github.com/useval/gpt_markdown
 issue_tracker: https://github.com/useval/gpt_markdown/issues
 
 environment:
-  # val_highlight needs Dart 3.9 and Flutter 3.35.
-  sdk: ">=3.9.0 <4.0.0"
-  flutter: ">=3.35.0"
+  # material_ui needs Dart 3.12 and Flutter 3.44.
+  sdk: ">=3.12.0 <4.0.0"
+  flutter: ">=3.44.0"
 
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^1.0.0
   val_latex_flutter: ^0.1.2
   val_highlight: ^0.1.0
   val_highlight_flutter: ^0.1.0

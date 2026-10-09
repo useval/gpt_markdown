@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:widgetbook/widgetbook.dart';
 import 'package:widgetbook_annotation/widgetbook_annotation.dart' as widgetbook;
@@ -32,11 +32,21 @@ class GptMarkdownWidgetbook extends StatelessWidget {
     return Widgetbook.material(
       directories: directories,
       addons: [
-        MaterialThemeAddon(
+        ThemeAddon<ThemeData>(
           themes: [
             WidgetbookTheme(name: 'Light', data: _theme(Brightness.light)),
             WidgetbookTheme(name: 'Dark', data: _theme(Brightness.dark)),
           ],
+          themeBuilder: (context, theme, child) => Theme(
+            data: theme,
+            child: ColoredBox(
+              color: theme.scaffoldBackgroundColor,
+              child: DefaultTextStyle(
+                style: theme.textTheme.bodyMedium!,
+                child: child,
+              ),
+            ),
+          ),
         ),
         // The reason this catalogue exists: a paragraph scales the box it
         // reserves for an inline widget, so anything rendered through a

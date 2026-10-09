@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'style_lerp.dart';
 
 /// What a table does when it is wider than the space it is given.

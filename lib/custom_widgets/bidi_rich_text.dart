@@ -185,7 +185,7 @@ class RenderBidiParagraph extends RenderParagraph
     with InlineCodeDecoration, InlineTapTargets {
   RenderBidiParagraph(
     super.text, {
-    bool bidiEnabled = true,
+    this._bidiEnabled = true,
     List<InlineCodeRun> inlineCodeRuns = const <InlineCodeRun>[],
     List<InlineTapRun> inlineTapRuns = const <InlineTapRun>[],
     super.textAlign,
@@ -201,7 +201,7 @@ class RenderBidiParagraph extends RenderParagraph
     super.children,
     super.registrar,
     super.selectionColor,
-  }) : _bidiEnabled = bidiEnabled {
+  }) {
     this.inlineCodeRuns = inlineCodeRuns;
     this.inlineTapRuns = inlineTapRuns;
   }

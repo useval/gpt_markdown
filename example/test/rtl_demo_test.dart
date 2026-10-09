@@ -1,7 +1,7 @@
 import 'package:example/main.dart';
 import 'package:example/rtl_demo.dart';
 import 'package:example/rtl_sample.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:gpt_markdown/custom_widgets/unordered_ordered_list.dart';

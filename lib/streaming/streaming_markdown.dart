@@ -1,7 +1,7 @@
 /// Reveal animation for Markdown that arrives a token at a time.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'reveal_engine.dart';

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:gpt_markdown/custom_widgets/bidi_rich_text.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
@@ -206,10 +206,9 @@ final class AlertBuildDetails {
     required this.style,
     required this.title,
     required this.content,
-    required Widget Function() buildDefault,
-    required Widget Function() buildQuote,
-  }) : _buildDefault = buildDefault,
-       _buildQuote = buildQuote;
+    required this._buildDefault,
+    required this._buildQuote,
+  });
 
   /// The element this alert is being built in.
   final BuildContext context;
@@ -596,11 +595,10 @@ final class InlineLatexBuildDetails extends InlineBuildDetails {
     required super.style,
     required this.tex,
     required this.source,
-    required Widget Function() buildDefault,
-    required InlineSpan Function(Widget child) placeholder,
+    required this._buildDefault,
+    required this._placeholder,
     this.onTap,
-  }) : _buildDefault = buildDefault,
-       _placeholder = placeholder;
+  });
 
   /// The formula to render, after [GptMarkdownConfig.latexWorkaround].
   final String tex;
@@ -650,9 +648,9 @@ final class BlockLatexBuildDetails {
     required this.style,
     required this.tex,
     required this.source,
-    required Widget Function() buildDefault,
+    required this._buildDefault,
     this.onTap,
-  }) : _buildDefault = buildDefault;
+  });
 
   /// The element this formula is being built in.
   final BuildContext context;

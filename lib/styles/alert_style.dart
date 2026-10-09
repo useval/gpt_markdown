@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../plusparse/ast.dart' show MarkdownAlertType;
 import 'style_lerp.dart';

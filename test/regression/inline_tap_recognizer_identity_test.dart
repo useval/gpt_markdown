@@ -10,7 +10,7 @@
 /// a press that began, and ended, on `b`.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gpt_markdown/custom_widgets/bidi_rich_text.dart';
