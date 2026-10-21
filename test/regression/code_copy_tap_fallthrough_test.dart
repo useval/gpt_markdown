@@ -101,4 +101,29 @@ void main() {
 
     await tester.pumpAndSettle(const Duration(seconds: 3));
   });
+
+  testWidgets('disposing during the copied window does not throw', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 600,
+            child: GptMarkdown('```dart\nvar a = 1;\n```'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.content_copy_rounded));
+    await tester.pump();
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(tester.takeException(), isNull);
+  });
 }
