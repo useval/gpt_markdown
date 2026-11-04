@@ -7,6 +7,8 @@
   `fade`.
 * With a `blockAnimation`, a streamed table appears once complete, so its
   entrance animates every row.
+* Requires `material_ui` 1.3.0+, `val_latex_flutter` 0.1.4+ and
+  `val_highlight_flutter` 0.1.2+ (the latest that support Flutter 3.44).
 
 ### Fixed
 
