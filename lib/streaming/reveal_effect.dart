@@ -37,7 +37,9 @@ enum GptMarkdownAnimation {
   blurIn,
 
   /// Characters land in an accent colour and settle into the text colour, so
-  /// a bright crest travels along the newest text.
+  /// a coloured crest travels along the newest text.
+  ///
+  /// The accent is the theme's `ColorScheme.primary`.
   wave;
 
   /// Whether the reveal paces itself at all, rather than showing everything.
@@ -111,11 +113,22 @@ enum GptMarkdownBlockAnimation {
 ///
 /// Returns null when the character should be drawn exactly as it will settle,
 /// which the renderer takes as licence to skip styling it at all.
+///
+/// [accent] is the colour [GptMarkdownAnimation.wave]'s crest lands in; the
+/// widget passes the theme's `ColorScheme.primary`. Without one the crest is
+/// derived from [color], which on the near-grey text colours of most themes
+/// is a grey — close to indistinguishable from [GptMarkdownAnimation.fade].
+///
+/// [fontSize] is the text's laid-out size, which
+/// [GptMarkdownAnimation.blurIn] scales its blur by, so the effect reads the
+/// same at any size. Without one the blur is a fixed 3 logical pixels.
 TextStyle? revealStyleFor(
   GptMarkdownAnimation effect,
   double progress,
-  Color color,
-) {
+  Color color, {
+  Color? accent,
+  double? fontSize,
+}) {
   if (progress >= 1) {
     return null;
   }
@@ -129,11 +142,19 @@ TextStyle? revealStyleFor(
       return TextStyle(color: color.withValues(alpha: color.a * t));
 
     case GptMarkdownAnimation.blurIn:
-      // The blur has to resolve a little ahead of the opacity, or the last
-      // of it lands on a character already at full strength and reads as a
-      // smudge rather than as focus arriving.
-      final sigma = _blurSigma * (1 - Curves.easeOut.transform(t));
-      final paint = Paint()..color = color.withValues(alpha: color.a * t);
+      // Opacity runs ahead of the blur. The other way round — blur strongest
+      // while the character is still nearly transparent — the blur was over
+      // before anyone could see it, and the effect read as a plain fade: by
+      // half opacity it was under a pixel. Here a word is two-thirds opaque
+      // while still clearly soft, then sharpens through the rest of its
+      // entrance, finishing as its opacity long since has.
+      final opacity = Curves.easeOut.transform((t * 1.6).clamp(0.0, 1.0));
+      final soft = 1 - t;
+      final peak = fontSize == null
+          ? _blurSigma
+          : (fontSize * _blurPerEm).clamp(_minPeakSigma, _maxPeakSigma);
+      final sigma = peak * soft * soft;
+      final paint = Paint()..color = color.withValues(alpha: color.a * opacity);
       if (sigma > _minSigma) {
         paint.maskFilter = ui.MaskFilter.blur(ui.BlurStyle.normal, sigma);
       }
@@ -144,23 +165,41 @@ TextStyle? revealStyleFor(
     case GptMarkdownAnimation.wave:
       // Full opacity almost immediately — the motion readers see is the
       // colour crest travelling, not letters materialising.
+      if (accent != null) {
+        final opacity = (t * 4).clamp(0.0, 1.0);
+        // Eased in, so a letter holds the accent for a moment before it
+        // settles: the crest is a band a few words long, not a flicker.
+        final crest =
+            Color.lerp(accent, color, Curves.easeIn.transform(t)) ?? color;
+        return TextStyle(color: crest.withValues(alpha: color.a * opacity));
+      }
       final opacity = (t * 3).clamp(0.0, 1.0);
       final crest = Color.lerp(_waveCrest(color), color, t) ?? color;
       return TextStyle(color: crest.withValues(alpha: color.a * opacity));
   }
 }
 
-/// Peak blur radius, in logical pixels, at the instant a character appears.
+/// Peak blur radius, in logical pixels, at the instant a character appears,
+/// when no font size is known.
 const double _blurSigma = 3;
+
+/// Peak blur radius per logical pixel of font size: 4 px on 20 px text.
+const double _blurPerEm = 0.2;
+
+/// Bounds on the font-scaled peak, so tiny text still blurs visibly and huge
+/// text does not smear across its neighbours.
+const double _minPeakSigma = 1.5;
+const double _maxPeakSigma = 8;
 
 /// Below this the blur costs a mask filter and shows nothing.
 const double _minSigma = 0.05;
 
-/// The colour a character lands in before settling into the text colour.
+/// The colour a character lands in before settling into the text colour, when
+/// no accent is given.
 ///
-/// Derived from the text colour rather than themed, so the crest reads on any
-/// background without the caller configuring anything: light text brightens,
-/// dark text lifts toward mid-grey.
+/// Derived from the text colour: its lightness moves 0.35 toward the middle —
+/// light text dims, dark text lifts. On a near-grey text colour that is a
+/// grey, so the widget passes the theme's accent instead.
 Color _waveCrest(Color color) {
   final hsl = HSLColor.fromColor(color);
   final lightness = hsl.lightness > 0.5

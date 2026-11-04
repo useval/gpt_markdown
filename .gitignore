@@ -57,3 +57,6 @@ docs/comparison.md
 # No leading slash, so these match in nested apps (example/, widgetbook/) too.
 .fvm/
 .fvmrc
+
+# Local scratch space for demos and recordings. Never committed.
+/demo/

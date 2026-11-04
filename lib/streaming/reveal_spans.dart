@@ -114,6 +114,8 @@ int _count(InlineSpan span) {
 /// * **Unrevealed** — dropped. The document ends where the reveal is, so
 ///   nothing below the reading position is laid out before it is meant to be
 ///   seen, and nothing pops in there later.
+///
+/// [accent] and [fontSize] are passed through to [revealStyleFor].
 List<InlineSpan> applyReveal({
   required List<InlineSpan> spans,
   required int revealed,
@@ -121,6 +123,8 @@ List<InlineSpan> applyReveal({
   required double Function(int index) progressFor,
   required Color defaultColor,
   int window = 64,
+  Color? accent,
+  double? fontSize,
 }) {
   final from = effect.animatesCharacters ? revealed - window : revealed;
   final out = <InlineSpan>[];
@@ -133,6 +137,8 @@ List<InlineSpan> applyReveal({
     effect: effect,
     progressFor: progressFor,
     inheritedColor: defaultColor,
+    accent: accent,
+    fontSize: fontSize,
   );
   return out;
 }
@@ -151,6 +157,8 @@ void _walk({
   required GptMarkdownAnimation effect,
   required double Function(int index) progressFor,
   required Color inheritedColor,
+  Color? accent,
+  double? fontSize,
 }) {
   for (final span in spans) {
     if (cursor.value >= revealed) {
@@ -187,6 +195,8 @@ void _walk({
             effect: effect,
             progressFor: progressFor,
             inheritedColor: inheritedColor,
+            accent: accent,
+            fontSize: fontSize,
           );
           return revealedInner;
         }),
@@ -220,6 +230,8 @@ void _walk({
         progressFor: progressFor,
         color: color,
         recognizer: span.recognizer,
+        accent: accent,
+        fontSize: fontSize,
       );
     }
     final children = span.children;
@@ -233,6 +245,8 @@ void _walk({
         effect: effect,
         progressFor: progressFor,
         inheritedColor: color,
+        accent: accent,
+        fontSize: fontSize,
       );
     }
     if (pieces.isEmpty) {
@@ -301,6 +315,8 @@ void _emitText({
   required double Function(int index) progressFor,
   required Color color,
   GestureRecognizer? recognizer,
+  Color? accent,
+  double? fontSize,
 }) {
   final start = cursor.value;
   final end = start + text.length;
@@ -348,6 +364,24 @@ void _emitText({
     }
   }
 
+  // The run of groups mid-entrance at the same progress step, emitted as one
+  // styled span.
+  var pieceFrom = -1;
+  var pieceLevel = -1;
+  TextStyle? pieceStyle;
+  void flushPiece(int until) {
+    if (pieceFrom >= 0) {
+      out.add(
+        TextSpan(
+          text: text.substring(pieceFrom - start, until - start),
+          style: pieceStyle,
+          recognizer: recognizer,
+        ),
+      );
+      pieceFrom = -1;
+    }
+  }
+
   final perCharacter = effect.animatesPerCharacter;
   while (i < limit) {
     final int next;
@@ -374,25 +408,50 @@ void _emitText({
       // as the edge advances, the next.
       anchor = i == settledEnd ? _wordStart(text, start, i) : i;
     }
-    final delta = revealStyleFor(effect, progressFor(anchor), color);
-    if (delta == null) {
+    final level = (progressFor(anchor) * _progressLevels).floor();
+    if (level >= _progressLevels) {
+      flushPiece(i);
       if (plainFrom < 0) {
         plainFrom = i;
       }
+    } else if (pieceFrom >= 0 && level == pieceLevel) {
+      // Same step of the same entrance as the group before it: one span.
     } else {
-      flushPlain(i);
-      out.add(
-        TextSpan(
-          text: text.substring(i - start, next - start),
-          style: delta,
-          recognizer: recognizer,
-        ),
+      final delta = revealStyleFor(
+        effect,
+        level / _progressLevels,
+        color,
+        accent: accent,
+        fontSize: fontSize,
       );
+      flushPiece(i);
+      if (delta == null) {
+        if (plainFrom < 0) {
+          plainFrom = i;
+        }
+      } else {
+        flushPlain(i);
+        pieceFrom = i;
+        pieceLevel = level;
+        pieceStyle = delta;
+      }
     }
     i = next;
   }
+  flushPiece(limit);
   flushPlain(limit);
 }
+
+/// Steps an entrance's progress is rounded to before it is styled.
+///
+/// Neighbouring characters revealed within a few milliseconds of each other
+/// round to the same step and share one span, instead of each carrying a
+/// style of its own. At speed that is most of them: a 1200 chars/s reveal
+/// has hundreds of characters mid-entrance, and one span apiece made every
+/// frame lay out hundreds of runs. A step is 1/32 of the entrance — less than
+/// one frame's change for any entrance under half a second, and a 3% change
+/// in opacity or colour beyond that.
+const int _progressLevels = 32;
 
 /// One reveal group: any leading whitespace, then the word after it.
 ///

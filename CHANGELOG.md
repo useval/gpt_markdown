@@ -1,3 +1,33 @@
+## Unreleased
+
+### Added
+
+* `revealStyleFor` and `applyReveal` take optional `accent` and `fontSize`;
+  `RevealEngine` exposes `window`, `fadingFrom` and `maxFadeWindow`.
+
+### Changed
+
+* The `wave` and `blurIn` animations now look like what they describe.
+  `wave`'s crest takes the hue of the theme's `ColorScheme.primary`, made
+  vivid and kept clearly lighter or darker than the text — it was a grey
+  derived from the text colour, hard to tell from `fade`. `blurIn` stays
+  soft while the text is already visible, and its blur scales with the font
+  size; the blur used to be over before the text could be seen.
+
+### Fixed
+
+* Streaming: a character's entrance is no longer cut short when more than
+  64 characters are arriving at once — which the defaults (300 chars/s for
+  0.25 s) already exceeded. The window now grows with the reveal speed, up
+  to 256.
+* Streaming: tables, code blocks and formulas no longer play their block
+  animation a second time once the reply goes quiet (or after a pause in
+  the stream), and a `$$` block whose closing `$$` arrives split across
+  chunks no longer flashes its raw TeX.
+* Streaming: a display formula no longer drops back to raw TeX for a moment
+  as it closes. Markdown-like characters inside the TeX (the `_` in
+  `(z)_i`) were read as emphasis and held the formula back.
+
 ## 1.4.0
 
 ### Added

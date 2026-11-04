@@ -365,6 +365,9 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
       return;
     }
     final before = _engine.revealedFloor;
+    // Characters still fading before this tick: those that finish during it
+    // need one more build to drop their last step of style.
+    final fadingBefore = _engine.fadingFrom;
     final visibleBefore = _visibleCount(before);
     final keepGoing = _engine.tick(dt, _total, widget.charactersPerSecond);
     final after = _engine.revealedFloor;
@@ -374,10 +377,7 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     // Only crossing a segment boundary changes the document's child list.
     // Inside a segment, notify just the active reveal/fade window.
     if (visibleBefore != visibleAfter) setState(() {});
-    final from = max(
-      0,
-      _visibleCount(max(0, before - RevealEngine.fadeWindow)) - 1,
-    );
+    final from = max(0, _visibleCount(fadingBefore) - 1);
     for (var i = from; i < visibleAfter && i < _segmentFrames.length; i++) {
       _segmentFrames[i].value++;
     }
@@ -859,6 +859,27 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     _prepared = true;
   }
 
+  /// The colour `wave`'s crest lands in: the theme accent's hue, made vivid
+  /// and kept clearly apart from the text in lightness.
+  ///
+  /// The accent as the theme gives it is not enough. Material 3's dark
+  /// `primary` is a pastel by design — `#BCC2FF` against `#E4E1E9` text, a
+  /// lightness gap of 0.03 — so a crest in it is near-white on near-white
+  /// and `wave` reads as a plain fade. Light text gets a crest well below
+  /// it, dark text one well above, and either way a saturated one.
+  static Color _waveCrest(Color accent, Color text) {
+    final hsl = HSLColor.fromColor(accent);
+    final textLightness = HSLColor.fromColor(text).lightness;
+    final lightness = textLightness > 0.5
+        ? min(hsl.lightness, textLightness - 0.3).clamp(0.45, 1.0)
+        : max(hsl.lightness, textLightness + 0.35).clamp(0.0, 0.6);
+    return hsl
+        .withSaturation(max(hsl.saturation, 0.75))
+        .withLightness(lightness.toDouble())
+        .toColor()
+        .withValues(alpha: accent.a);
+  }
+
   Widget _buildSegment(BuildContext context, int index) {
     final segment = _segments[index];
     final spans = _rendered[index];
@@ -868,22 +889,38 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     final settled = _engine.revealedFloor >= _total && !_engine.tailStillFading;
     final fading = revealing && widget.effect.animatesCharacters && !settled;
     final revealed = revealing ? _engine.revealedFloor : _total;
-    final settledBelow = fading ? revealed - RevealEngine.fadeWindow : revealed;
+    // Exactly the characters still mid-entrance; everything behind them is
+    // finished and its segment can hand back its cached settled widget.
+    final settledBelow = fading ? _engine.fadingFrom : revealed;
     final Widget paragraph;
     if (end <= settledBelow) {
       paragraph = _settled[(index, segment)] ??= _paragraph(spans);
     } else {
+      final textColor =
+          widget.config.style?.color ??
+          DefaultTextStyle.of(context).style.color ??
+          Theme.of(context).colorScheme.onSurface;
       paragraph = _paragraph(
         applyReveal(
           spans: spans,
           revealed: revealed - start,
           effect: widget.effect,
           progressFor: (offset) => _engine.progressFor(start + offset),
-          defaultColor:
-              widget.config.style?.color ??
-              DefaultTextStyle.of(context).style.color ??
-              Theme.of(context).colorScheme.onSurface,
-          window: RevealEngine.fadeWindow,
+          defaultColor: textColor,
+          window: revealed - settledBelow,
+          // What `wave`'s crest lands in, and what `blurIn` scales its blur
+          // by. Read only while a segment is mid-reveal; a settled document
+          // never gets here.
+          accent: widget.effect == GptMarkdownAnimation.wave
+              ? _waveCrest(Theme.of(context).colorScheme.primary, textColor)
+              : null,
+          fontSize:
+              (widget.config.textScaler ?? MediaQuery.textScalerOf(context))
+                  .scale(
+                    widget.config.style?.fontSize ??
+                        DefaultTextStyle.of(context).style.fontSize ??
+                        14,
+                  ),
         ),
       );
     }
@@ -981,19 +1018,26 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     // Nothing is hidden while it holds: the text so far is the label. The
     // structure — headings, links, list items as separate nodes — mounts the
     // moment the reveal lands.
+    //
+    // The wrappers stay in the tree either way; only their arguments flip.
+    // Returning the bare column once the reply went quiet changed the widget
+    // type at the root, so the whole document was torn down and re-inflated:
+    // every block entrance re-armed and played again from nothing (a finished
+    // table faded in a second time, a `growIn` block collapsed and regrew),
+    // table scroll offsets reset, and SVG images blanked for a frame. A model
+    // that paused for longer than [_arrivalQuiet] did it twice mid-stream.
+    // With `container: false` and no label the `Semantics` adds no node, so
+    // the settled tree is the same as with no wrapper at all.
     final animating =
         _arriving ||
         (revealing &&
             (_engine.revealedFloor < _total || _engine.tailStillFading));
-    if (!animating) {
-      return column;
-    }
     return Semantics(
-      container: true,
-      label: MediaQuery.accessibleNavigationOf(context)
+      container: animating,
+      label: animating && MediaQuery.accessibleNavigationOf(context)
           ? _semanticsLabel()
           : null,
-      child: ExcludeSemantics(child: column),
+      child: ExcludeSemantics(excluding: animating, child: column),
     );
   }
 

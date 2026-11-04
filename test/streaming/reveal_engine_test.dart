@@ -68,9 +68,62 @@ void main() {
       expect(engine.revealedFloor, 100000);
       // Everything older than the ring is finished by definition.
       expect(engine.progressFor(0), 1);
-      expect(engine.progressFor(100000 - RevealEngine.fadeWindow - 1), 1);
+      expect(engine.window, lessThanOrEqualTo(RevealEngine.maxFadeWindow));
+      expect(engine.progressFor(100000 - engine.window - 1), 1);
       // The newest ones are still arriving.
       expect(engine.progressFor(99999), lessThan(1));
+    });
+  });
+
+  group('fade window', () {
+    test('starts at the minimum and holds a slow reveal', () {
+      final engine = RevealEngine(fadeSeconds: 0.25);
+      // A target the baseline speed reaches, so no catch-up kicks in.
+      engine.tick(0.1, 10, 100);
+      expect(engine.window, RevealEngine.fadeWindow);
+    });
+
+    test('grows so a fast reveal is not cut short', () {
+      // 300 chars/s for 0.25 s is 75 characters mid-entrance: more than 64.
+      final engine = RevealEngine(fadeSeconds: 0.25);
+      // Text arriving at the reveal's own pace: no catch-up.
+      for (var i = 1; i <= 30; i++) {
+        engine.tick(1 / 60, i * 5, 300);
+      }
+      expect(engine.window, greaterThanOrEqualTo(75));
+      // A character 70 behind the head started 0.23 s ago: still arriving.
+      expect(engine.progressFor(engine.revealedFloor - 70), lessThan(1));
+    });
+
+    test('keeps the stamps of characters already arriving', () {
+      final engine = RevealEngine(fadeSeconds: 0.5);
+      engine.tick(0.1, 10, 100); // 10 characters, 50 in flight: window 64
+      expect(engine.window, RevealEngine.fadeWindow);
+      final before = engine.progressFor(5);
+      engine.tick(0.1, 400, 2000); // fast now: window grows
+      expect(engine.window, greaterThan(RevealEngine.fadeWindow));
+      // Character 5 carried on from where it was rather than restarting
+      // (0) or snapping (1).
+      expect(engine.progressFor(5), closeTo(before + 0.2, 0.01));
+    });
+
+    test('fadingFrom is exactly where entrances are still playing', () {
+      final engine = RevealEngine(fadeSeconds: 0.25);
+      // Text arriving at the reveal's own pace: no catch-up.
+      for (var i = 1; i <= 60; i++) {
+        engine.tick(1 / 60, i * 5, 300);
+      }
+      final from = engine.fadingFrom;
+      // Far fewer than the window: only a quarter second's worth.
+      expect(engine.revealedFloor - from, lessThanOrEqualTo(80));
+      expect(engine.progressFor(from - 1), 1);
+      expect(engine.progressFor(from), lessThan(1));
+    });
+
+    test('never exceeds the maximum', () {
+      final engine = RevealEngine(fadeSeconds: 5);
+      engine.tick(0.1, 1000000, 100000);
+      expect(engine.window, RevealEngine.maxFadeWindow);
     });
   });
 

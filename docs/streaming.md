@@ -161,8 +161,8 @@ with the whole message.
 | `GptMarkdownAnimation.none` | Shows content immediately; no reveal ticker |
 | `.typewriter` | Reveals paced characters at their final appearance |
 | `.fade` | Fades newly revealed text from transparent |
-| `.blurIn` | Resolves new text out of a blur while fading in |
-| `.wave` | Sends an accent-colour crest across new characters |
+| `.blurIn` | Resolves new text out of a blur while fading in; the blur scales with the font size |
+| `.wave` | Sends a vivid crest in the hue of the theme's `ColorScheme.primary` across new characters |
 
 `typewriter` controls only visibility and pacing. `fade` and `blurIn` style
 word-sized runs to preserve shaping, kerning and stable wrapping. `wave` is the
