@@ -56,7 +56,9 @@ import '../plusparse/scanner.dart';
     if (dollarsAreMath && c == 0x24 /* $ */ ) {
       if (i + 1 < n && source.codeUnitAt(i + 1) == 0x24) {
         final end = source.indexOf(r'$$', i + 2);
-        if (end == -1) return _open(source, i, i + 2, r'\[', r'\]');
+        if (end == -1) {
+          return _open(source, i, i + 2, r'\[', r'\]', dollarBlock: true);
+        }
         i = end + 2;
         continue;
       }
@@ -91,9 +93,19 @@ import '../plusparse/scanner.dart';
   int start,
   int bodyStart,
   String opener,
-  String closer,
-) {
-  final body = _withoutPartialTail(source.substring(bodyStart));
+  String closer, {
+  bool dollarBlock = false,
+}) {
+  var body = _withoutPartialTail(source.substring(bodyStart));
+  // Half of a `$$` closer: the first `$` has landed and the second is in the
+  // next chunk. Left in, it is a `$` inside maths, which the parser rejects,
+  // and the formula's error fallback painted the raw TeX source — a flash of
+  // source and a jump in height — for exactly one chunk at the end of every
+  // dollar block whose closer was split. An escaped `\$` is a literal dollar
+  // and stays.
+  if (dollarBlock && _partialDollarCloser.hasMatch(body)) {
+    body = body.substring(0, body.length - 1);
+  }
   // Nothing to draw yet: an empty formula would only flash an empty box.
   if (body.trim().isEmpty) return null;
   return (start: start, completed: '$opener$body $closer');
@@ -108,3 +120,4 @@ String _withoutPartialTail(String body) => body
 
 final RegExp _partialEnvironment = RegExp(r'\\(?:begin|end)\{[^}]*$');
 final RegExp _partialCommand = RegExp(r'\\[a-zA-Z]*$');
+final RegExp _partialDollarCloser = RegExp(r'(?<!\\)\$$');

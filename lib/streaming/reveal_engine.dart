@@ -38,17 +38,36 @@ class RevealEngine {
   /// Window the remainder is revealed over once streaming has finished.
   static const double fastForwardSeconds = 0.15;
 
-  /// How many characters can be mid-entrance at once.
+  /// The smallest number of characters that can be mid-entrance at once —
+  /// what every engine starts with.
   ///
-  /// A character older than this is necessarily finished, so its timestamp is
-  /// no longer worth keeping: stamps live in a fixed ring of this size rather
-  /// than a list that grows with the reply. Memory is constant, and a
-  /// fast-forward that reveals thousands of characters in one frame stamps
-  /// only the last [fadeWindow] of them instead of all of them.
+  /// A character further behind the head than [window] is treated as
+  /// finished, so its timestamp is no longer worth keeping: stamps live in a
+  /// ring of [window] slots rather than a list that grows with the reply.
+  /// Memory stays bounded, and a fast-forward that reveals thousands of
+  /// characters in one frame stamps only the last [window] of them.
   ///
   /// A power of two, so the ring index is a mask rather than a modulo.
   static const int fadeWindow = 64;
-  static const int _mask = fadeWindow - 1;
+
+  /// The largest [window] grows to.
+  ///
+  /// Bounds the per-frame cost: at most this many characters are restyled in
+  /// a frame, and the ring is at most 2 KB.
+  static const int maxFadeWindow = 256;
+
+  /// How many characters can be mid-entrance at once, between [fadeWindow]
+  /// and [maxFadeWindow].
+  ///
+  /// Grows when the head moves fast enough that more characters than this
+  /// are still inside their [fadeSeconds]: `charactersPerSecond ×
+  /// fadeSeconds` above 64 — which the defaults (300 × 0.25 = 75) already
+  /// are. A fixed 64 snapped the oldest of them to their final style before
+  /// their entrance ended, cutting every effect short at speed. Never
+  /// shrinks, so a character mid-entrance is never dropped from the ring.
+  int get window => _window;
+  int _window = fadeWindow;
+  int _mask = fadeWindow - 1;
 
   /// How long one character takes to finish its entrance.
   final double fadeSeconds;
@@ -60,7 +79,7 @@ class RevealEngine {
   double _clock = 0;
 
   /// Arrival time of character `i`, at ring slot `i & _mask`.
-  final Float64List _stamps = Float64List(fadeWindow);
+  Float64List _stamps = Float64List(fadeWindow);
 
   /// Characters that arrived with no entrance to play — everything below this
   /// index is fully revealed regardless of what the ring holds.
@@ -91,6 +110,30 @@ class RevealEngine {
     return _clock - _stamps[last & _mask] < fadeSeconds;
   }
 
+  /// The first character still playing its entrance; every character below
+  /// it is finished.
+  ///
+  /// Exact, from the stamps, rather than [window] behind the head: a short
+  /// entrance at speed has far fewer characters in flight than the window
+  /// holds, and everything behind them can render as settled. Stamps rise
+  /// with the index, so this is a binary search.
+  int get fadingFrom {
+    final head = _revealed.floor();
+    if (fadeSeconds <= 0) return head;
+    var low = math.max(_settledBelow, head - _window);
+    if (low < 0) low = 0;
+    var high = head;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (_clock - _stamps[mid & _mask] >= fadeSeconds) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
   /// How far through its entrance the character at [index] is, 0 to 1.
   double progressFor(int index) {
     if (index < _settledBelow) {
@@ -103,7 +146,7 @@ class RevealEngine {
       return 1;
     }
     // Older than the ring can hold, so certainly finished.
-    if (index < _revealed.floor() - fadeWindow) {
+    if (index < _revealed.floor() - _window) {
       return 1;
     }
     final elapsed = _clock - _stamps[index & _mask];
@@ -165,7 +208,7 @@ class RevealEngine {
     // — characters below the target still exist, are still mid-fade, and
     // keep fading. Vanished indices keep their own old stamps (nothing
     // restamps below the head), so if the text grows back over them they
-    // read as finished rather than replaying, and the `floor - fadeWindow`
+    // read as finished rather than replaying, and the `floor - window`
     // early-out in [progressFor] covers any slot a newer character
     // overwrites. A deliberate shrink goes through [reset] or [truncateTo]
     // instead.
@@ -180,6 +223,11 @@ class RevealEngine {
       speed = math.max(speed, backlog / window);
     }
 
+    // Not while fast-forwarding: that lands the remainder at once, and
+    // widening for it would restyle hundreds of characters for a moment no
+    // reader is meant to watch.
+    if (!_fastForwarding) _fit(speed * fadeSeconds);
+
     final before = _revealed.floor();
     _revealed = math.min(
       _revealed + speed * dt,
@@ -189,10 +237,10 @@ class RevealEngine {
 
     if (after > before) {
       final count = after - before;
-      // Only the newest `fadeWindow` characters can still be mid-entrance;
+      // Only the newest `window` characters can still be mid-entrance;
       // stamping the ones behind them would be overwritten immediately. This
-      // is what keeps a fast-forward of a long reply O(fadeWindow).
-      final from = math.max(before, after - fadeWindow);
+      // is what keeps a fast-forward of a long reply O(window).
+      final from = math.max(before, after - _window);
       for (var index = from; index < after; index++) {
         // Spread arrivals across the frame rather than stacking them on its
         // end, so a burst reveals as a ramp instead of a block.
@@ -207,5 +255,26 @@ class RevealEngine {
       return tailStillFading;
     }
     return true;
+  }
+
+  /// Widens [window] to hold [inFlight] characters, up to [maxFadeWindow].
+  ///
+  /// The stamps of the characters already in the ring move with them, so a
+  /// character mid-entrance carries on from where it was.
+  void _fit(double inFlight) {
+    if (inFlight <= _window || _window >= maxFadeWindow) return;
+    var size = _window;
+    while (size < inFlight && size < maxFadeWindow) {
+      size <<= 1;
+    }
+    final stamps = Float64List(size);
+    final mask = size - 1;
+    final head = _revealed.floor();
+    for (var index = math.max(0, head - _window); index < head; index++) {
+      stamps[index & mask] = _stamps[index & _mask];
+    }
+    _stamps = stamps;
+    _window = size;
+    _mask = mask;
   }
 }

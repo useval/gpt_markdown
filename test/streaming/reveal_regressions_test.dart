@@ -233,6 +233,59 @@ void main() {
     });
   });
 
+  group('settling', () {
+    // The document used to swap its root between a semantics wrapper (text
+    // arriving) and the bare column (quiet). The type change re-inflated the
+    // whole tree, so every block entrance played a second time once the reply
+    // had finished — and again around every pause in the stream.
+    for (final streaming in [true, false]) {
+      testWidgets('a finished block does not enter again '
+          '(isStreaming stays $streaming)', (tester) async {
+        tester.view.physicalSize = const Size(900, 2000);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        const source =
+            'Intro.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAfter the table.';
+        const block = GptMarkdownBlockAnimation.fadeIn;
+        await tester.pumpWidget(_app('', block: block));
+        for (var n = 6; n < source.length; n += 6) {
+          await tester.pumpWidget(_app(source.substring(0, n), block: block));
+          await tester.pump(const Duration(milliseconds: 40));
+        }
+        await tester.pumpWidget(_app(source, block: block));
+        // The reveal lands and the entrance completes while the text is
+        // still counted as arriving.
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 100));
+        final entrance = find.byType(GptMarkdownBlockEntrance);
+        expect(entrance, findsOneWidget);
+        final element = entrance.evaluate().single;
+        double opacity() => tester
+            .widget<FadeTransition>(
+              find.descendant(
+                of: entrance,
+                matching: find.byType(FadeTransition),
+              ),
+            )
+            .opacity
+            .value;
+        expect(opacity(), 1);
+
+        // The reply goes quiet, and the host may or may not say so.
+        await tester.pumpWidget(
+          _app(source, block: block, isStreaming: streaming),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pump(const Duration(milliseconds: 16));
+
+        expect(identical(entrance.evaluate().single, element), isTrue);
+        expect(opacity(), 1);
+        await tester.pumpAndSettle();
+      });
+    }
+  });
+
   group('segments and holds', () {
     testWidgets('two identical blocks do not collide on one key', (
       tester,
@@ -355,16 +408,30 @@ void main() {
 
     test('fade splits at whitespace only — never inside a word', () {
       final pieces = leaves(
-        reveal(GptMarkdownAnimation.fade, progressFor: (i) => 0.5),
+        // Every character at its own point in its entrance.
+        reveal(GptMarkdownAnimation.fade, progressFor: (i) => i / 30),
       );
       expect(pieces, ['alpha', ' beta', ' gamma', ' delta']);
     });
 
     test('wave still styles letter by letter', () {
       final pieces = leaves(
-        reveal(GptMarkdownAnimation.wave, progressFor: (i) => 0.5),
+        reveal(GptMarkdownAnimation.wave, progressFor: (i) => i / 30),
       );
       expect(pieces.length, 22);
+    });
+
+    test('neighbours at the same point share one span', () {
+      // A fast reveal lands many characters within a frame of each other;
+      // styling each separately made every frame lay out hundreds of runs.
+      for (final effect in [
+        GptMarkdownAnimation.fade,
+        GptMarkdownAnimation.blurIn,
+        GptMarkdownAnimation.wave,
+      ]) {
+        final pieces = leaves(reveal(effect, progressFor: (i) => 0.5));
+        expect(pieces, ['alpha beta gamma delta'], reason: effect.name);
+      }
     });
 
     test('a settled span passes through as the original object', () {

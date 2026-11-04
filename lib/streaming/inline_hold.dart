@@ -89,6 +89,31 @@ int inlineSafeLength(
       i = end;
       continue;
     }
+    if (source.codeUnitAt(i) == 0x5C /* \ */ && i + 1 < source.length) {
+      // A closed formula is opaque in the same way: `_`, `*`, `[` and `$`
+      // inside TeX are maths, not Markdown. Scanned as prose, the `_` of
+      // `(z)_i` read as an opening underscore, and the hold cut the tail
+      // inside a `\[…\]` that had just closed — the formula fell back to raw
+      // source and was retyped, until enough text arrived after it to release
+      // the hold. An open formula is left in the text so the pair check below
+      // still holds it.
+      final next = source.codeUnitAt(i + 1);
+      if (next == 0x28 /* ( */ || next == 0x5B /* [ */ ) {
+        final close = source.indexOf(next == 0x28 ? r'\)' : r'\]', i + 2);
+        if (close != -1) {
+          final end = close + 2;
+          outside.write(' ' * (end - i));
+          i = end;
+          continue;
+        }
+      }
+      // Any other escape is one unit: `\\[` is a backslash and a bracket.
+      outside
+        ..writeCharCode(0x5C)
+        ..writeCharCode(next);
+      i += 2;
+      continue;
+    }
     outside.writeCharCode(source.codeUnitAt(i));
     i += 1;
   }

@@ -139,6 +139,45 @@ void main() {
     expect(visibleText(tester), isNot(contains(r'$$')));
   });
 
+  testWidgets(r'half a $$ closer never paints the raw source', (tester) async {
+    // Tokenisers split `$$` freely. With only the first `$` in, the formula
+    // used to be completed as `\[x^2$ \]`, which the parser rejects, and the
+    // error fallback drew `x^2 $` as text for that one chunk.
+    await stream(tester, ['So:\n\n', '\$\$\nx^2\n', '\$'], dollars: true);
+    expect(texs(tester), hasLength(1));
+    expect(texs(tester).single, isNot(contains(r'$')));
+    expect(visibleText(tester), isNot(contains(r'$')));
+    expect(visibleText(tester), isNot(contains('x^2')));
+
+    await stream(tester, ['\$'], dollars: true);
+    expect(texs(tester), hasLength(1));
+    expect(visibleText(tester), isNot(contains(r'$')));
+  });
+
+  testWidgets('a closed formula is not held for the markup inside it', (
+    tester,
+  ) async {
+    // `_i` inside TeX is a subscript, not an underscore opening emphasis.
+    // Read as prose by the inline hold, it cut the tail inside the `\[…\]`
+    // the closed `$$` became, and the formula fell back to raw source until
+    // the next paragraph began.
+    await stream(
+      tester,
+      ['So:\n\n', '\$\$\n', r'\mathrm{softmax}(z)_i = \frac{1}{2}', '\n'],
+      animation: GptMarkdownAnimation.fade,
+      dollars: true,
+    );
+    expect(texs(tester), hasLength(1));
+
+    received += '\$\$';
+    await tester.pumpWidget(
+      view(received, animation: GptMarkdownAnimation.fade, dollars: true),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(texs(tester), hasLength(1));
+    expect(visibleText(tester), isNot(contains('softmax')));
+  });
+
   testWidgets('a long dollar block closing does not restart the reveal', (
     tester,
   ) async {
