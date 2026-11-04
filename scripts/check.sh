@@ -38,12 +38,16 @@ for package in "${PACKAGES[@]}"; do
 done
 
 step "format"
+# The Dart files git knows about — committed or new, not ignored. `.` would
+# also walk git-ignored folders (build output, a local demo/) that CI never
+# sees, and fail locally on files that are not part of the project.
+dart_files() { git ls-files --cached --others --exclude-standard -- '*.dart'; }
 if [[ $FIX -eq 1 ]]; then
-  dart format .
+  dart_files | xargs dart format
 else
   # Formatting is part of the 50-point analysis category on pub.dev, so it is
   # a hard failure rather than a warning.
-  dart format --output=none --set-exit-if-changed .
+  dart_files | xargs dart format --output=none --set-exit-if-changed
 fi
 
 for package in "${PACKAGES[@]}"; do
