@@ -1,44 +1,26 @@
-## Unreleased
-
-### Added
-
-* `revealStyleFor` and `applyReveal` take optional `accent` and `fontSize`;
-  `RevealEngine` exposes `window`, `fadingFrom` and `maxFadeWindow`.
+## 1.4.1
 
 ### Changed
 
-* The `wave` and `blurIn` animations now look like what they describe.
-  `wave`'s crest takes the hue of the theme's `ColorScheme.primary`, made
-  vivid and kept clearly lighter or darker than the text — it was a grey
-  derived from the text colour, hard to tell from `fade`. `blurIn` stays
-  soft while the text is already visible, and its blur scales with the font
-  size; the blur used to be over before the text could be seen.
-* Streaming with a `blockAnimation` set: a table now appears once it is
-  complete, so its entrance animates every row. Previously the entrance
-  played on the header alone and each row after it landed instantly. A table
-  the stream stops growing is released after 1.5 s.
+* `wave` now sweeps a crest in your theme's accent colour, and `blurIn`
+  stays visibly soft while text fades in — both were hard to tell from
+  `fade`.
+* With a `blockAnimation`, a streamed table appears once complete, so its
+  entrance animates every row.
 
 ### Fixed
 
-* Streaming: a character's entrance is no longer cut short when more than
-  64 characters are arriving at once — which the defaults (300 chars/s for
-  0.25 s) already exceeded. The window now grows with the reveal speed, up
-  to 256.
-* Streaming: tables, code blocks and formulas no longer play their block
-  animation a second time once the reply goes quiet (or after a pause in
-  the stream), and a `$$` block whose closing `$$` arrives split across
-  chunks no longer flashes its raw TeX.
-* Streaming: a display formula no longer drops back to raw TeX for a moment
-  as it closes. Markdown-like characters inside the TeX (the `_` in
-  `(z)_i`) were read as emphasis and held the formula back.
-* Streaming: a reply that opens with a `$$` formula no longer blanks for a
-  few frames as the formula closes. The close was mistaken for a new reply
-  and restarted the reveal.
-* Streaming: a code block's language label no longer flickers through
-  `Code`, `d`, `da`… while its opening line arrives, and a closing fence no
-  longer flashes as a stray backtick.
-* Streaming with a `blockAnimation` set: a code block that gains lines after
-  its entrance grows smoothly instead of stepping down a line per chunk.
+* Streaming no longer flickers: blocks don't replay their entrance when a
+  reply goes quiet, and formulas don't flash raw TeX or blank out as they
+  close.
+* Streamed code blocks: no flickering language label or stray backtick, and
+  they grow smoothly as lines arrive.
+* Character animations are no longer cut short at higher speeds.
+
+### Added
+
+* Optional `accent` and `fontSize` on `revealStyleFor` and `applyReveal`;
+  `RevealEngine.window`, `fadingFrom` and `maxFadeWindow`.
 
 ## 1.4.0
 
