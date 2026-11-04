@@ -349,7 +349,9 @@ void main() {
         'blockquote': '> a quoted line of text here',
       };
       const entered = <String, String>{
-        'table': '| A | B |\n|---|---|\n| 1 | 2 |',
+        // Finished by the text after it: a table still gaining rows is held
+        // until it is whole, so its entrance animates every row.
+        'table': '| A | B |\n|---|---|\n| 1 | 2 |\n\nAfter the table.',
         'fence': '```dart\nvar x = 1;\n```',
         'block maths': r'\[ E = mc^2 \]',
         'rule': '---',

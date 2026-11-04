@@ -634,10 +634,44 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
     if (revealing && isCustomBlock()) {
       return segments;
     }
+    List<String> withTail(String tail) => [
+      ...segments.sublist(0, segments.length - 1),
+      if (tail.trim().isNotEmpty) tail,
+    ];
+    if (!_holdExpired) {
+      // A fence whose opening line is still arriving waits for the whole
+      // line. Its info string is the code block's language label: shown
+      // early, the label read `Code`, then `d`, `da`, `dart` as it streamed.
+      final opener = _partialFenceOpener(last);
+      if (opener != null) {
+        _armHoldRelease();
+        return withTail(last.substring(0, opener));
+      }
+    }
     // An open fence streams as itself — its backticks are not inline
-    // delimiters, and its body must not be withheld.
+    // delimiters, and its body must not be withheld. Except its closer while
+    // it arrives: a lone ` or `` on the last line is the fence closing, not
+    // code, and shown it flashed as a stray backtick under the last line.
     if (_hasOpenFence(last)) {
+      final lineStart = last.lastIndexOf('\n') + 1;
+      if (!_holdExpired && _fenceRun.hasMatch(last.substring(lineStart))) {
+        _armHoldRelease();
+        return withTail(last.substring(0, lineStart));
+      }
       return segments;
+    }
+    if (widget.blockAnimation != GptMarkdownBlockAnimation.none &&
+        !_holdExpired) {
+      // A table still gaining rows waits until it is whole. Its entrance
+      // plays once, when it first appears — shown as soon as its header
+      // formed, the entrance animated a header alone and every row after it
+      // landed instantly, so the animation was barely seen. A table that
+      // stops growing is released by the quiet-stream timer.
+      final table = _openTableStart(last);
+      if (table != null) {
+        _armHoldRelease();
+        return withTail(last.substring(0, table));
+      }
     }
     // Fences that have already closed are opaque to the inline scanner too:
     // only the prose after the last one is scanned, or a closed fence's
@@ -651,10 +685,6 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
           )
         : null;
     final mathStart = math == null ? last.length : scanFrom + math.start;
-    List<String> withTail(String tail) => [
-      ...segments.sublist(0, segments.length - 1),
-      if (tail.trim().isNotEmpty) tail,
-    ];
     String completedTail() => last.substring(0, mathStart) + math!.completed;
 
     if (!revealing) {
@@ -736,6 +766,51 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
       }
     });
   }
+
+  /// Where the fence opener on [segment]'s last, still-arriving line begins,
+  /// or null.
+  ///
+  /// Only an opener: a line inside an already-open fence is code.
+  static int? _partialFenceOpener(String segment) {
+    final lineStart = segment.lastIndexOf('\n') + 1;
+    final line = segment.substring(lineStart);
+    if (fenceOpen(unquoted(line)) == null) return null;
+    final before = lineStart == 0 ? '' : segment.substring(0, lineStart - 1);
+    if (before.isNotEmpty && openFenceAfter(before.split('\n')) != null) {
+      return null;
+    }
+    return lineStart;
+  }
+
+  /// Where a pipe table that runs to the end of [segment] begins, or null.
+  ///
+  /// The table has its delimiter row and every line after its header is a
+  /// table row, so more rows may still be coming. Text after the table means
+  /// it is finished.
+  static int? _openTableStart(String segment) {
+    final lines = segment.split('\n');
+    var offset = 0;
+    for (var i = 0; i < lines.length - 1; i++) {
+      final line = lines[i];
+      if (line.trimLeft().startsWith('|') &&
+          _tableDelimiter.hasMatch(lines[i + 1])) {
+        final rest = lines.skip(i + 2);
+        final open = rest.every(
+          (l) => l.isEmpty || l.trimLeft().startsWith('|'),
+        );
+        return open ? offset : null;
+      }
+      offset += line.length + 1;
+    }
+    return null;
+  }
+
+  /// A line that is nothing but the start of a fence: backticks or tildes.
+  static final RegExp _fenceRun = RegExp(r'^\s*(`+|~+)$');
+
+  static final RegExp _tableDelimiter = RegExp(
+    r'^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$',
+  );
 
   /// Whether [segment] contains a fence that has not closed yet.
   ///
