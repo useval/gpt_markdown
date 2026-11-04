@@ -55,6 +55,10 @@ class _GptMarkdownBlockEntranceState extends State<GptMarkdownBlockEntrance>
   /// Where [GptMarkdownBlockAnimation.scaleIn] starts.
   static const double _scaleFrom = 0.96;
 
+  /// How long a block takes to grow into a new line it gained after its
+  /// entrance.
+  static const Duration _growDuration = Duration(milliseconds: 240);
+
   AnimationController? _controller;
   late final CurvedAnimation _eased;
   bool _decided = false;
@@ -99,7 +103,16 @@ class _GptMarkdownBlockEntranceState extends State<GptMarkdownBlockEntrance>
     if (controller == null) {
       return widget.child;
     }
-    final faded = FadeTransition(opacity: _eased, child: widget.child);
+    // A block can keep growing after its entrance — a code block gains a
+    // line at a time while its fence is open. Easing the height there keeps
+    // the text below gliding instead of stepping down a line per chunk.
+    final grows = AnimatedSize(
+      duration: _growDuration,
+      curve: Curves.easeOutCubic,
+      alignment: AlignmentDirectional.topStart,
+      child: widget.child,
+    );
+    final faded = FadeTransition(opacity: _eased, child: grows);
     switch (widget.animation) {
       case GptMarkdownBlockAnimation.none:
         return widget.child;

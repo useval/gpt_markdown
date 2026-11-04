@@ -30,6 +30,11 @@
 * Streaming: a reply that opens with a `$$` formula no longer blanks for a
   few frames as the formula closes. The close was mistaken for a new reply
   and restarted the reveal.
+* Streaming: a code block's language label no longer flickers through
+  `Code`, `d`, `da`… while its opening line arrives, and a closing fence no
+  longer flashes as a stray backtick.
+* Streaming with a `blockAnimation` set: a code block that gains lines after
+  its entrance grows smoothly instead of stepping down a line per chunk.
 
 ## 1.4.0
 
