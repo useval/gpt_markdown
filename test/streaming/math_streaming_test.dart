@@ -178,6 +178,40 @@ void main() {
     expect(visibleText(tester), isNot(contains('softmax')));
   });
 
+  testWidgets('a reply that opens with a dollar block keeps it as it closes', (
+    tester,
+  ) async {
+    // With the formula first, the `$$` → `\[` rewrite shares no prefix with
+    // the text before it, and the close was taken for a new reply: the
+    // reveal reset and the formula vanished until the head caught up again —
+    // three frames at 30 chars/s.
+    Widget slow(String text) => MaterialApp(
+      home: Scaffold(
+        body: GptMarkdown(
+          text,
+          animation: GptMarkdownAnimation.fade,
+          useDollarSignsForLatex: true,
+          charactersPerSecond: 30,
+        ),
+      ),
+    );
+    var text = '';
+    for (final chunk in ['\$\$\n', r'x^2 + \frac{1}{2}', '\n']) {
+      text += chunk;
+      await tester.pumpWidget(slow(text));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pump(const Duration(seconds: 2));
+    expect(texs(tester), hasLength(1));
+
+    await tester.pumpWidget(slow('$text\$\$'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(texs(tester), hasLength(1), reason: 'frame $i after the close');
+    }
+    await tester.pump(const Duration(seconds: 2));
+  });
+
   testWidgets('a long dollar block closing does not restart the reveal', (
     tester,
   ) async {

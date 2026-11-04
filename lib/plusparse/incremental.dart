@@ -278,14 +278,22 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
       // A dollar formula closing is recognised whatever its length: an open
       // formula renders while it streams, so a long `$$…$$` block is on
       // screen, and resetting would retype the message around it.
+      //
+      // That holds when the formula is the very first thing in the reply,
+      // too: there `shared` is 0, and requiring a shared prefix treated the
+      // close as a new reply — the reveal reset to nothing and the whole
+      // message, formula included, blanked for several frames. The rewrite
+      // never shortens the text (`$$` and `\[` are the same length, and the
+      // closer was just appended), which a replacement usually does.
       final dollarClosed =
           shared < oldWidget.text.length &&
           shared < widget.text.length &&
+          widget.text.length >= oldWidget.text.length &&
           oldWidget.text.codeUnitAt(shared) == 0x24 /* $ */ &&
           widget.text.codeUnitAt(shared) == 0x5C /* \ */;
       final tailEdit =
-          shared > 0 &&
-          (dollarClosed ||
+          dollarClosed ||
+          (shared > 0 &&
               oldWidget.text.length - shared <= markupDelimiterHold + 8);
       if (!tailEdit) {
         // A regenerate or a branch switch replaces the text rather than

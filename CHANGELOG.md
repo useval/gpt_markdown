@@ -27,6 +27,9 @@
 * Streaming: a display formula no longer drops back to raw TeX for a moment
   as it closes. Markdown-like characters inside the TeX (the `_` in
   `(z)_i`) were read as emphasis and held the formula back.
+* Streaming: a reply that opens with a `$$` formula no longer blanks for a
+  few frames as the formula closes. The close was mistaken for a new reply
+  and restarted the reveal.
 
 ## 1.4.0
 
