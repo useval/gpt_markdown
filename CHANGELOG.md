@@ -30,14 +30,14 @@
 
 * **CommonMark 0.31.2 conformance**, checked in CI: 530 of 652 spec examples
   pass; the rest are documented choices. See
-  [CommonMark conformance](docs/commonmark.md).
+  [CommonMark conformance](docs/commonmark.mdx).
 * **HTML support.** Common tags render as what they mean — formatting,
   links, images, headings, quotes, code, lists, checkboxes — wrappers like
   `<div>` are dropped and `<script>` is hidden. HTML tables support
   `colspan`, `rowspan`, `<thead>`/`<tfoot>` and `<caption>`, and inline
   `<svg>` renders as a drawing. `htmlTags` adds, remaps or removes tags;
   `html: false` turns HTML off. See
-  [HTML tags](docs/custom-components.md#html-tags).
+  [HTML tags](docs/custom-components.mdx#html-tags).
 * **SVG images**, including shields.io badges, and every HTML5 named entity.
 * New nodes and styles: `MdSuperscript`, `MdSubscript`, `MdHighlight`,
   `ScriptStyle`, `HighlightStyle`; plus `MdUnorderedList.loose`,
@@ -213,7 +213,7 @@ flat as responses grow.
 
 At 12 KB, per-chunk streaming is **31× faster** with `GptMarkdown` and **74×
 faster** with `SliverGptMarkdown` compared with 1.2.1. See the
-[benchmarks](docs/benchmark.md).
+[benchmarks](docs/performance/benchmarks.mdx).
 
 Nothing has been removed. Existing integrations continue to work, and
 deprecated APIs remain supported until 2.0.0.
@@ -270,7 +270,7 @@ See [MIGRATION.md](MIGRATION.md) for complete upgrade guidance.
 * `InlinePattern.delimited` for tokens that open and close, such as `:emoji:`,
   `::spoiler::` or `{{token}}` — the counterpart to `InlinePattern.prefixed`,
   which cannot express a closing delimiter. The token name is the named group
-  `name`. See [docs/inline-syntax.md](docs/inline-syntax.md).
+  `name`. See [docs/inline-syntax.mdx](docs/inline-syntax.mdx).
 
 ## 1.2.0
 
@@ -303,7 +303,7 @@ Upgrading from 1.1.x? See [MIGRATION.md](MIGRATION.md).
   Only the part of the reply that can still change is rebuilt, so the cost per
   token stays flat as the reply grows. The reveal keeps up with a fast model,
   fast-forwards when `isStreaming` turns false, and honours reduced motion.
-  See [docs/streaming.md](docs/streaming.md).
+  See [docs/streaming.mdx](docs/streaming.mdx).
 * `GptMarkdownStyleSheet` with twelve per-component style classes, settable per
   widget or app-wide on `GptMarkdownThemeData`. Unset fields keep the previous
   defaults.

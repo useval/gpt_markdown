@@ -1,4 +1,5 @@
-// Generates the README showcase images.
+// Generates the README showcase images, and the images and streaming clip the
+// docs (`docs/`) show.
 //
 // Not a test: it renders the package into PNGs. It lives under `tool/` so
 // `flutter test` does not pick it up with the real suite, and it runs through
@@ -6,8 +7,14 @@
 // Flutter widget to a file without opening a window.
 //
 // Run it with `./scripts/screenshots.sh`.
-@Timeout(Duration(minutes: 2))
+@Timeout(Duration(minutes: 5))
 library;
+
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart' show SynchronousFuture;
+import 'package:flutter/rendering.dart';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +24,43 @@ import 'fonts.dart';
 
 /// Where the images land, relative to this file.
 const _out = '../../screenshots';
+
+/// The docs' own images, at 2× for high-density screens (the README's are 1×).
+/// The docs reuse the README images as well. Relative to the package root,
+/// where `flutter test` runs.
+const _docsOut = 'docs/images';
+
+/// Frames of the streaming clip; `scripts/screenshots.sh` encodes them into
+/// `docs/videos/streaming.mp4`. Under `build/`, so never committed.
+const _framesOut = 'build/streaming-frames';
+
+/// Renders for the product page on the company website: the same scenes with
+/// no window or page around them (the site draws its own frame), at 3×.
+/// Under `build/`, so never committed; the website's
+/// `npm run product-assets` runs this group and converts what it writes.
+const _siteOut = 'build/site';
+
+/// Writes the frame to [path] at [ratio] times its logical size.
+///
+/// `matchesGoldenFile` captures at 1×, which reads soft on a high-density
+/// screen; the docs site shows these images at their logical width.
+Future<void> _save2x(
+  WidgetTester tester,
+  String path, {
+  double ratio = 2,
+}) async {
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(_Showcase.frameKey),
+  );
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: ratio);
+    final png = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    File(path)
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync(png!.buffer.asUint8List());
+  });
+}
 
 /// One card's worth of Markdown.
 ///
@@ -126,6 +170,106 @@ Citations render as tags too [1]
 """,
 };
 
+/// Images only the docs need, beyond the README's.
+final _docScenes = <String, _Scene>{
+  'quickstart': const _Scene(
+    "# Hello\n\nSome **bold** text and `inline code`.",
+  ),
+  'alerts': const _Scene('''
+> [!NOTE]
+> Your usage resets at midnight UTC.
+
+> [!TIP]
+> Pass `isStreaming: true` while the reply is still generating.
+
+> [!IMPORTANT]
+> Keys created before March need to be rotated.
+
+> [!WARNING]
+> Deleting a project deletes its API keys too.
+'''),
+  'html': const _Scene('''
+### Plans
+
+Press <kbd>Ctrl</kbd> + <kbd>K</kbd> to compare. Search terms are <mark>highlighted</mark>; H<sub>2</sub>O and x<sup>2</sup> work too.
+
+<table>
+  <thead><tr><th>Plan</th><th colspan="2">Limits</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="2">Free</td><td>Requests</td><td>1,000 / day</td></tr>
+    <tr><td>Seats</td><td>3</td></tr>
+    <tr><td>Team</td><td>Requests</td><td>Unlimited</td></tr>
+  </tbody>
+</table>
+'''),
+  // The same reply twice: the package's defaults, then the style sheet the
+  // customization guide shows (`docsStyleSheet` in test/docs/snippets_test.dart).
+  'style-default': const _Scene(_styledReply, sheet: _defaultSheet),
+  'style-custom': const _Scene(_styledReply, sheet: _customSheet),
+};
+
+const _styledReply = '''
+## Release notes
+
+Version **2.0** ships the new [importer](https://pub.dev) and drops `legacyMode`.
+
+> Existing projects keep working; nothing to migrate.
+
+```dart
+final project = await Project.open('notes');
+```
+''';
+
+GptMarkdownStyleSheet _defaultSheet(ColorScheme colors) =>
+    const GptMarkdownStyleSheet();
+
+/// Mirrors `docsStyleSheet` in test/docs/snippets_test.dart — keep them alike.
+GptMarkdownStyleSheet _customSheet(ColorScheme colors) => GptMarkdownStyleSheet(
+  heading: const HeadingStyle(
+    textStyle: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.6),
+  ),
+  link: LinkStyle(
+    color: colors.primary,
+    decoration: TextDecoration.none,
+    fontWeight: FontWeight.w600,
+  ),
+  blockQuote: BlockQuoteStyle(
+    barWidth: 4,
+    barColor: colors.primary,
+    barRadius: const Radius.circular(2),
+    backgroundColor: colors.primary.withValues(alpha: 0.06),
+    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+  ),
+  codeBlock: CodeBlockStyle(
+    borderRadius: const Radius.circular(12),
+    borderColor: colors.primary.withValues(alpha: 0.25),
+  ),
+);
+
+/// The reply the streaming clip types out.
+const _streamingReply = r'''
+## Why is the sky blue?
+
+Sunlight is a mix of colours. Air molecules scatter **short wavelengths** much more than long ones — the strength goes as \(1/\lambda^4\):
+
+- Blue light scatters about **5×** more than red
+- So blue reaches your eyes from every direction
+
+```python
+ratio = (700 / 450) ** 4   # ≈ 5.8
+```
+
+At sunset the light crosses more air, the blue is scattered away, and the sky turns *orange*.
+''';
+
+/// One image: its Markdown, and the style sheet it renders with.
+class _Scene {
+  const _Scene(this.markdown, {this.sheet = _styleSheet});
+
+  final String markdown;
+  final GptMarkdownStyleSheet Function(ColorScheme colors) sheet;
+}
+
 /// Logical width of one card. About a phone's worth, so the wrapping in the
 /// image matches what a reader will see in their own app.
 const _cardWidth = 440.0;
@@ -152,7 +296,235 @@ void main() {
       );
     });
   }
+
+  for (final scene in _docScenes.entries) {
+    testWidgets('docs: ${scene.key}', (tester) async {
+      const width = _pagePadding * 2 + _cardWidth;
+      tester.view.physicalSize = const Size(width * 2, 1800);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        _Showcase(markdown: scene.value.markdown, sheet: scene.value.sheet),
+      );
+      await tester.pumpAndSettle();
+      while (tester.takeException() != null) {}
+
+      await _save2x(tester, '$_docsOut/${scene.key}.png');
+    });
+  }
+
+  // One image per component page, from tool/screenshots/components/<slug>.md.
+  // The page shows the same file in its Markdown tab, so the two can't drift.
+  final examples =
+      Directory('tool/screenshots/components')
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.md'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  for (final file in examples) {
+    final slug = file.uri.pathSegments.last.replaceAll('.md', '');
+    testWidgets('docs: component $slug', (tester) async {
+      const width = _pagePadding * 2 + _cardWidth;
+      tester.view.physicalSize = const Size(width * 2, 1800);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.reset);
+      await _serveChart(tester);
+
+      // The package's defaults: a component page shows what you get.
+      await tester.pumpWidget(
+        _Showcase(markdown: file.readAsStringSync(), sheet: _defaultSheet),
+      );
+      await tester.pumpAndSettle();
+      while (tester.takeException() != null) {}
+
+      await _save2x(tester, '$_docsOut/components/$slug.png');
+      // A font load (KaTeX's) announces itself while the capture runs and
+      // schedules one more frame; let the message land, then run that frame.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    });
+  }
+
+  // ─── The website's renders: bare, at 3× ─────────────────────────────────
+  Future<void> siteShot(
+    WidgetTester tester,
+    String name,
+    Widget scene, {
+    double ratio = 3,
+  }) async {
+    tester.view.physicalSize = const Size(_cardWidth * 3, 2400);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    await _serveChart(tester);
+    await tester.pumpWidget(scene);
+    await tester.pumpAndSettle();
+    while (tester.takeException() != null) {}
+    await _save2x(tester, '$_siteOut/$name.png', ratio: ratio);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+  }
+
+  for (final file in examples) {
+    final slug = file.uri.pathSegments.last.replaceAll('.md', '');
+    testWidgets('site: component $slug', (tester) async {
+      await siteShot(
+        tester,
+        'components/$slug',
+        _Showcase(
+          markdown: file.readAsStringSync(),
+          sheet: _defaultSheet,
+          bare: true,
+        ),
+      );
+    });
+  }
+  testWidgets('site: style-default', (tester) async {
+    await siteShot(
+      tester,
+      'style-default',
+      const _Showcase(markdown: _styledReply, sheet: _defaultSheet, bare: true),
+    );
+  });
+  testWidgets('site: style-custom', (tester) async {
+    await siteShot(
+      tester,
+      'style-custom',
+      const _Showcase(markdown: _styledReply, sheet: _customSheet, bare: true),
+    );
+  });
+  testWidgets('site: inline-components', (tester) async {
+    await siteShot(
+      tester,
+      'inline-components',
+      _Showcase(markdown: _scenes['inline-components']!, bare: true),
+    );
+  });
+
+  // The streaming clip: the reply arrives in chunks, as from a model, with the
+  // fade reveal on. One frame every 80 ms of (fake) time — 12.5 fps.
+  Future<void> streamFrames(
+    WidgetTester tester,
+    String out, {
+    bool bare = false,
+  }) async {
+    final width = bare ? _cardWidth : _pagePadding * 2 + _cardWidth;
+    tester.view.physicalSize = Size(width * 2, 1800);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.reset);
+
+    const step = Duration(milliseconds: 80);
+    const charsPerStep = 8; // ≈ 100 characters a second, a typical model
+    var frame = 0;
+    Future<void> capture() =>
+        _save2x(tester, '$out/${(frame++).toString().padLeft(3, '0')}.png');
+
+    for (var n = 0; n <= _streamingReply.length; n += charsPerStep) {
+      await tester.pumpWidget(
+        _Showcase(
+          markdown: _streamingReply.substring(0, n),
+          streaming: true,
+          height: _streamingHeight,
+          bare: bare,
+        ),
+      );
+      await tester.pump(step);
+      while (tester.takeException() != null) {}
+      await capture();
+    }
+    // Generation ends; let the reveal finish, then hold the result.
+    await tester.pumpWidget(
+      _Showcase(
+        markdown: _streamingReply,
+        streaming: true,
+        isStreaming: false,
+        height: _streamingHeight,
+        bare: bare,
+      ),
+    );
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(step);
+      while (tester.takeException() != null) {}
+      await capture();
+    }
+  }
+
+  testWidgets(
+    'docs: streaming frames',
+    (tester) => streamFrames(tester, _framesOut),
+  );
+  testWidgets(
+    'site: streaming frames',
+    (tester) => streamFrames(tester, '$_siteOut/streaming-frames', bare: true),
+  );
 }
+
+/// The address the image example points at.
+const _chartUrl = 'https://example.com/charts/signups.png';
+
+/// Puts a drawn bar chart in the image cache under [_chartUrl], so the image
+/// example renders exactly as the package draws a network image that returns
+/// it — without a network, which the test harness does not have.
+Future<void> _serveChart(WidgetTester tester) async {
+  final image = await tester.runAsync(() {
+    const size = Size(640, 300);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)
+      ..drawRect(Offset.zero & size, Paint()..color = const Color(0xFFF8F9FC));
+    final grid = Paint()
+      ..color = const Color(0xFFE3E7EE)
+      ..strokeWidth = 2;
+    for (var y = 60.0; y < 260; y += 50) {
+      canvas.drawLine(Offset(40, y), Offset(size.width - 40, y), grid);
+    }
+    const values = [0.35, 0.48, 0.42, 0.61, 0.58, 0.74, 0.86];
+    const barWidth = 56.0;
+    final gap =
+        (size.width - 80 - barWidth * values.length) / (values.length - 1);
+    for (var i = 0; i < values.length; i++) {
+      final left = 40 + i * (barWidth + gap);
+      final height = 200 * values[i];
+      canvas.drawRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(left, 260 - height, barWidth, height),
+          topLeft: const Radius.circular(8),
+          topRight: const Radius.circular(8),
+        ),
+        Paint()
+          ..color = Color.lerp(
+            const Color(0xFFA5B4FC),
+            const Color(0xFF4F46E5),
+            i / (values.length - 1),
+          )!,
+      );
+    }
+    canvas.drawLine(
+      const Offset(40, 260),
+      Offset(size.width - 40, 260),
+      Paint()
+        ..color = const Color(0xFF94A3B8)
+        ..strokeWidth = 2,
+    );
+    return recorder.endRecording().toImage(
+      size.width.toInt(),
+      size.height.toInt(),
+    );
+  });
+  PaintingBinding.instance.imageCache.putIfAbsent(
+    const NetworkImage(_chartUrl),
+    () => OneFrameImageStreamCompleter(
+      SynchronousFuture(ImageInfo(image: image!)),
+    ),
+  );
+}
+
+/// Fixed card height for the clip, so every frame is the same size.
+const _streamingHeight = 400.0;
 
 /// Channels, people and shortcodes this showcase knows about.
 ///
@@ -425,11 +797,29 @@ GptMarkdownStyleSheet _styleSheet(ColorScheme colors) {
 
 /// One light card on a soft page.
 class _Showcase extends StatelessWidget {
-  const _Showcase({required this.markdown});
+  const _Showcase({
+    required this.markdown,
+    this.sheet = _styleSheet,
+    this.streaming = false,
+    this.isStreaming = true,
+    this.height,
+    this.bare = false,
+  });
 
   static const frameKey = ValueKey('showcase-frame');
 
+  /// Just the content on white: no page, no window.
+  final bool bare;
+
   final String markdown;
+  final GptMarkdownStyleSheet Function(ColorScheme colors) sheet;
+
+  /// Render as a live reply: the fade reveal, with [isStreaming] passed on.
+  final bool streaming;
+  final bool isStreaming;
+
+  /// A fixed card body height; null sizes the card to its content.
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -441,15 +831,26 @@ class _Showcase extends StatelessWidget {
         child: RepaintBoundary(
           key: frameKey,
           child: Container(
-            padding: const EdgeInsets.all(_pagePadding),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFF4F6FB), Color(0xFFE4E9F2)],
-              ),
+            padding: bare
+                ? EdgeInsets.zero
+                : const EdgeInsets.all(_pagePadding),
+            decoration: bare
+                ? null
+                : const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFF4F6FB), Color(0xFFE4E9F2)],
+                    ),
+                  ),
+            child: _Card(
+              markdown: markdown,
+              sheet: sheet,
+              streaming: streaming,
+              isStreaming: isStreaming,
+              height: height,
+              bare: bare,
             ),
-            child: _Card(markdown: markdown),
           ),
         ),
       ),
@@ -460,9 +861,21 @@ class _Showcase extends StatelessWidget {
 /// The card, drawn as a small window so the image reads as a piece of an app
 /// rather than as a slab of text.
 class _Card extends StatelessWidget {
-  const _Card({required this.markdown});
+  const _Card({
+    required this.markdown,
+    required this.sheet,
+    required this.streaming,
+    required this.isStreaming,
+    required this.height,
+    this.bare = false,
+  });
 
   final String markdown;
+  final GptMarkdownStyleSheet Function(ColorScheme colors) sheet;
+  final bool streaming;
+  final bool isStreaming;
+  final double? height;
+  final bool bare;
 
   @override
   Widget build(BuildContext context) {
@@ -483,13 +896,13 @@ class _Card extends StatelessWidget {
       width: _cardWidth,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE3E7EE)),
+          borderRadius: BorderRadius.circular(bare ? 0 : 16),
+          border: bare ? null : Border.all(color: const Color(0xFFE3E7EE)),
           // No shadow: the test renderer draws a blurred shadow as a hard
           // slab, so the border alone separates card from page.
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(bare ? 0 : 15),
           child: Theme(
             data: theme,
             child: Builder(
@@ -499,14 +912,22 @@ class _Card extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const _TitleBar(),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 16, 22, 22),
+                    if (!bare) const _TitleBar(),
+                    Container(
+                      height: height,
+                      alignment: Alignment.topLeft,
+                      padding: bare
+                          ? const EdgeInsets.all(24)
+                          : const EdgeInsets.fromLTRB(22, 16, 22, 22),
                       child: GptMarkdown(
                         markdown,
                         inlinePatterns: _showcasePatterns(context),
                         inlineDirectives: _showcaseDirectives(context),
-                        styleSheet: _styleSheet(theme.colorScheme),
+                        styleSheet: sheet(theme.colorScheme),
+                        animation: streaming
+                            ? GptMarkdownAnimation.fade
+                            : GptMarkdownAnimation.none,
+                        isStreaming: isStreaming,
                       ),
                     ),
                   ],

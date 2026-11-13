@@ -1,0 +1,124 @@
+---
+title: CommonMark conformance
+description: "Which Markdown and HTML the parser supports, how that is measured, and where it differs by design."
+---
+
+The parser is checked against the
+[CommonMark 0.31.2 specification](https://spec.commonmark.org/0.31.2/)'s own
+examples on every CI run.
+
+| | Examples |
+|---|---|
+| Pass | **530 of 652** |
+| Raw HTML passed through unchanged — not supported | 70 |
+| Indented code blocks — not supported | 46 |
+| Deliberate leniencies, below | 6 |
+
+Leave out the two features the package does not support, and 530 of the 536
+remaining examples pass. Every failure is listed, with its reason, in
+`test/commonmark_spec/known_failures.json`. The list is a ratchet: an example
+on it that starts passing fails the run until it is taken off, so a fixed
+example can never silently break again.
+
+## How it is measured
+
+The parser produces a tree, not HTML. `test/commonmark_spec/html_writer.dart`
+writes the tree the way the reference renderer would, and both sides go
+through the spec's own normalisation (`normalize.py`, ported to Dart) before
+they are compared. The package's own syntax — maths, citations, footnotes,
+tables, task items — prints as tags the spec never expects, so an example
+that wrongly produces one fails rather than passing by accident.
+
+```sh
+flutter test test/commonmark_spec
+```
+
+## What is not supported
+
+**Indented code blocks.** CommonMark makes a block indented four spaces into
+code. Models indent prose — a continuation under a list item, a wrapped
+quote — far more often than they mean code, and they fence real code. Here a
+line indented four or more is text: it continues a paragraph, and at the
+start of a block it is parsed like any other line.
+
+**Raw HTML.** CommonMark passes HTML through to the browser. A Flutter
+renderer has no browser, so tags are either understood (the allowlist below)
+or shown as text. Raw HTML support is planned for 2.0.
+
+## Leniencies
+
+Each one keeps a pattern models write constantly rendering the way its
+author meant.
+
+| Input | Here | CommonMark | Examples |
+|---|---|---|---|
+| `**Note:**text`, `**粗体：**中文` | bold | literal `**` | 380, 392 |
+| `[doc](My File.pdf)` | a link | literal text | 41, 488, 508 |
+| `1. Step` then `  - detail` or `  1. sub-step` (two spaces) | a nested list | a separate list | 297 |
+
+A `  2.` two spaces in, with no sub-list started, stays a sibling. Only runs
+of two or more `*` are lenient; a single `*` follows the spec, so
+`2 * 3 * 4` and `a*"b"*` stay as written. A destination with spaces is a
+link only when the text in brackets is not a defined reference, which then
+wins.
+
+## HTML
+
+Tags the parser understands map onto nodes it already has. Anything else —
+and any tag that is not closed — stays text, so `the <b> tag` reads as
+written.
+
+A closing tag belongs to the nearest opening tag before it, so in
+`The <b> tag makes <b>text bold.</b>` the second `<b>` is bold and the first
+reads as written. A browser would bold everything from the first `<b>` on;
+here a tag only mentioned in prose never restyles the rest of a reply. A tag
+whose content is raw — `<code>`, `<kbd>`, `<pre>`, `<script>`, `<svg>` —
+ends at its first closing tag.
+
+| HTML | Becomes |
+|---|---|
+| `<b>`, `<strong>` | bold |
+| `<i>`, `<em>`, `<cite>`, `<var>` | italic |
+| `<s>`, `<del>`, `<strike>` | strikethrough |
+| `<u>`, `<ins>` | underline |
+| `<code>`, `<kbd>`, `<samp>`, `<tt>` | inline code; the content is not Markdown |
+| `<sup>`, `<sub>` | superscript, subscript (`ScriptStyle`) |
+| `<mark>` | highlighted (`HighlightStyle`) |
+| `<br>` | a line break — in a table cell too |
+| `<a href="…" title="…">` | a link |
+| `<img src="…" alt="…" width="…" height="…">` | an image |
+| `<span>`, `<small>`, `<big>`, `<abbr>`, `<q>`, `<font>` | their content |
+| `<h1>`…`<h6>` starting a block | a heading |
+| `<blockquote>` starting a block | a quote of the Markdown inside |
+| `<pre>`, `<pre><code class="language-x">` starting a block | a code block |
+| `<table>` with `<tr>`, `<th>`, `<td>`, `<thead>`, `<tbody>`, `<tfoot>`, `<caption>` (`colspan`, `rowspan`, `align`, `text-align` understood) | a table; cells merge across columns and rows, rows in `<thead>` or of `<th>` cells are header rows, and a table with neither has no header |
+| `<svg>…</svg>`, on its own lines or inside a line | a drawing, sized by `width`, `height` and `viewBox`; `fill="currentColor"` takes the text colour. Shown once its `</svg>` arrives; nothing is fetched |
+| `<ul>`, `<ol start>` with `<li>` | a list; Markdown and nested lists inside items work |
+| `<input type="checkbox" checked>` | a checkbox — a task item inside `<li>` |
+| `<div>`, `<p>`, `<center>`, `<details>`, `<summary>`, `<section>`, … on lines of their own | dropped; the Markdown inside renders |
+| `<hr>` on a line of its own | a rule |
+| `<script>`, `<style>`, `<iframe>`, … when closed | hidden with their content |
+| `<!-- comment -->` | hidden |
+
+Every row can be changed — a builder for a tag of your own, a new meaning
+for a built-in one, or HTML off altogether. See
+[HTML tags](/docs/custom-components/#html-tags). Out of the box `<details>` renders
+open; a few lines of `htmlTags` make it a collapsible.
+
+Not understood yet, so text unless you register them: tables nested in a
+cell (their cells join the outer table), `<dl>`, `<video>`, `<audio>`, `<picture>`, MathML, `<ruby>`, and
+form controls other than a checkbox.
+
+## Where it differs from the reference output, by design
+
+These pass the spec — they are noted because they read differently from a
+browser:
+
+* **Line breaks.** A single newline inside a paragraph is shown as a line
+  break, not folded into a space. Models write short lines and lists of
+  glyphs that read wrong folded. Two trailing spaces or a trailing `\` are
+  hard breaks (`MdLineBreak`) as in CommonMark, and look the same.
+* **`\(…\)` and `\[…\]` are maths** when they enclose a formula. Unpaired, or
+  around nothing but punctuation, they are the escaped brackets CommonMark
+  says they are. A formula still streaming in is closed or held by the
+  streaming view before it reaches the parser.

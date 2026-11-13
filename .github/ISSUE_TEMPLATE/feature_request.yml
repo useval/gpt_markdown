@@ -7,8 +7,8 @@ body:
       value: |
         Many customisations need no change to the package. Before opening,
         check whether a style or builder already covers it: see
-        [customization](https://github.com/useval/gpt_markdown/blob/main/docs/customization.md)
-        and [API options](https://github.com/useval/gpt_markdown/blob/main/docs/api-options.md).
+        [customization](https://github.com/useval/gpt_markdown/blob/main/docs/customization.mdx)
+        and [API options](https://github.com/useval/gpt_markdown/blob/main/docs/options.mdx).
 
   - type: textarea
     id: problem

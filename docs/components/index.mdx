@@ -1,0 +1,124 @@
+---
+title: Components
+description: Everything a reply can contain, one page each — a preview, the Markdown that makes it, and how to style or replace it.
+---
+import { Image } from 'astro:assets'
+import img_text_formatting from '../images/components/text-formatting.png'
+import img_link from '../images/components/link.png'
+import img_inline_code from '../images/components/inline-code.png'
+import img_citation from '../images/components/citation.png'
+import img_footnotes from '../images/components/footnotes.png'
+import img_heading from '../images/components/heading.png'
+import img_blockquote from '../images/components/blockquote.png'
+import img_alert from '../images/components/alert.png'
+import img_horizontal_rule from '../images/components/horizontal-rule.png'
+import img_lists from '../images/components/lists.png'
+import img_task_list from '../images/components/task-list.png'
+import img_code_block from '../images/components/code-block.png'
+import img_math from '../images/components/math.png'
+import img_table from '../images/components/table.png'
+import img_image from '../images/components/image.png'
+
+Each page shows the component as the package draws it by default, the Markdown
+behind the picture, its syntax, how to style it, and an API reference generated
+from the source — the style object's fields, the builder's exact signature and
+the callbacks.
+
+## Text
+
+<div class="uv-cards">
+  <a class="uv-card" href="/docs/components/text-formatting/">
+    <Image src={img_text_formatting} alt="" width={492} />
+    <span class="uv-card-name">Text formatting</span>
+    <span class="uv-card-blurb">Bold, italic, strikethrough, highlight, sub- and superscript</span>
+  </a>
+  <a class="uv-card" href="/docs/components/link/">
+    <Image src={img_link} alt="" width={492} />
+    <span class="uv-card-name">Link</span>
+    <span class="uv-card-blurb">Markdown links, references and autolinks</span>
+  </a>
+  <a class="uv-card" href="/docs/components/inline-code/">
+    <Image src={img_inline_code} alt="" width={492} />
+    <span class="uv-card-name">Inline code</span>
+    <span class="uv-card-blurb">Code inside a sentence</span>
+  </a>
+  <a class="uv-card" href="/docs/components/citation/">
+    <Image src={img_citation} alt="" width={492} />
+    <span class="uv-card-name">Citation</span>
+    <span class="uv-card-blurb">Numbered source chips</span>
+  </a>
+  <a class="uv-card" href="/docs/components/footnotes/">
+    <Image src={img_footnotes} alt="" width={492} />
+    <span class="uv-card-name">Footnotes</span>
+    <span class="uv-card-blurb">Numbered notes, listed where they are defined</span>
+  </a>
+</div>
+
+## Blocks
+
+<div class="uv-cards">
+  <a class="uv-card" href="/docs/components/heading/">
+    <Image src={img_heading} alt="" width={492} />
+    <span class="uv-card-name">Heading</span>
+    <span class="uv-card-blurb">Six levels, and the h1 rule</span>
+  </a>
+  <a class="uv-card" href="/docs/components/blockquote/">
+    <Image src={img_blockquote} alt="" width={492} />
+    <span class="uv-card-name">Blockquote</span>
+    <span class="uv-card-blurb">Quotes, nested</span>
+  </a>
+  <a class="uv-card" href="/docs/components/alert/">
+    <Image src={img_alert} alt="" width={492} />
+    <span class="uv-card-name">Alert</span>
+    <span class="uv-card-blurb">Note, tip, important, warning, caution</span>
+  </a>
+  <a class="uv-card" href="/docs/components/horizontal-rule/">
+    <Image src={img_horizontal_rule} alt="" width={492} />
+    <span class="uv-card-name">Horizontal rule</span>
+    <span class="uv-card-blurb">A line across the reply</span>
+  </a>
+</div>
+
+## Lists
+
+<div class="uv-cards">
+  <a class="uv-card" href="/docs/components/lists/">
+    <Image src={img_lists} alt="" width={492} />
+    <span class="uv-card-name">Lists</span>
+    <span class="uv-card-blurb">Bullets and numbers, nested</span>
+  </a>
+  <a class="uv-card" href="/docs/components/task-list/">
+    <Image src={img_task_list} alt="" width={492} />
+    <span class="uv-card-name">Task list</span>
+    <span class="uv-card-blurb">Checkboxes and radio options</span>
+  </a>
+</div>
+
+## Code, math and data
+
+<div class="uv-cards">
+  <a class="uv-card" href="/docs/components/code-block/">
+    <Image src={img_code_block} alt="" width={492} />
+    <span class="uv-card-name">Code block</span>
+    <span class="uv-card-blurb">Highlighting and a copy button</span>
+  </a>
+  <a class="uv-card" href="/docs/components/math/">
+    <Image src={img_math} alt="" width={492} />
+    <span class="uv-card-name">Math</span>
+    <span class="uv-card-blurb">Inline and block LaTeX</span>
+  </a>
+  <a class="uv-card" href="/docs/components/table/">
+    <Image src={img_table} alt="" width={492} />
+    <span class="uv-card-name">Table</span>
+    <span class="uv-card-blurb">Aligned columns, scrolling when wide</span>
+  </a>
+  <a class="uv-card" href="/docs/components/image/">
+    <Image src={img_image} alt="" width={492} />
+    <span class="uv-card-name">Image</span>
+    <span class="uv-card-blurb">PNG, JPEG, GIF, WebP, SVG and data: URLs</span>
+  </a>
+</div>
+
+Every preview is one `GptMarkdown` widget with the package's default styles,
+rendered by its screenshot generator from the example shown on the page
+(`tool/screenshots/components/`), so the two always agree.

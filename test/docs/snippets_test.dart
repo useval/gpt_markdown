@@ -548,6 +548,37 @@ final htmlTagsSnippet = <String, HtmlTag?>{
   'u': null,
 };
 
+/// docs/customization.mdx, "A first example" — also the style sheet behind
+/// docs/images/style-custom.png (`_customSheet` in tool/screenshots).
+GptMarkdown docsStyleSheet(BuildContext context, String reply) {
+  final colors = Theme.of(context).colorScheme;
+
+  return GptMarkdown(
+    reply,
+    styleSheet: GptMarkdownStyleSheet(
+      heading: const HeadingStyle(
+        textStyle: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.6),
+      ),
+      link: LinkStyle(
+        color: colors.primary,
+        decoration: TextDecoration.none,
+        fontWeight: FontWeight.w600,
+      ),
+      blockQuote: BlockQuoteStyle(
+        barWidth: 4,
+        barColor: colors.primary,
+        barRadius: const Radius.circular(2),
+        backgroundColor: colors.primary.withValues(alpha: 0.06),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      ),
+      codeBlock: CodeBlockStyle(
+        borderRadius: const Radius.circular(12),
+        borderColor: colors.primary.withValues(alpha: 0.25),
+      ),
+    ),
+  );
+}
+
 GptMarkdown htmlTagsWidget(String reply) =>
     GptMarkdown(reply, htmlTags: htmlTagsSnippet);
 
@@ -581,5 +612,6 @@ void main() {
     expect(exampleTableBuilder(), isA<Widget>());
     expect(readmeSnippets('text', StringBuffer()), hasLength(4));
     expect(readmeStyleSheet.codeBlock, isNotNull);
+    expect(docsStyleSheet, isNotNull);
   });
 }

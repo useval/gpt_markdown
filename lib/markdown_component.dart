@@ -1813,16 +1813,33 @@ class UnderLineMd extends InlineMd {
   }
 }
 
+/// One cell of a table, as handed to a `tableBuilder`.
 class CustomTableField {
-  final String data;
-  final TextAlign alignment;
-
+  /// Creates a cell.
   CustomTableField({required this.data, this.alignment = TextAlign.left});
+
+  /// The cell's text.
+  ///
+  /// Plain text, with its Markdown formatting removed. A row shorter than the
+  /// table is padded with empty cells, and a cell an HTML `colspan` or
+  /// `rowspan` covers is empty: the spanning cell's text is in its first slot.
+  /// The deprecated legacy parser passes the cell's Markdown source instead.
+  final String data;
+
+  /// The cell's alignment, from the table's alignment row (or, for an HTML
+  /// table, its `align` or `text-align`). Defaults to `TextAlign.left`.
+  final TextAlign alignment;
 }
 
+/// One row of a table, as handed to a `tableBuilder`.
 class CustomTableRow {
-  final bool isHeader;
-  final List<CustomTableField> fields;
-
+  /// Creates a row.
   CustomTableRow({this.isHeader = false, required this.fields});
+
+  /// Whether this is a header row: the first row of a Markdown table, or an
+  /// HTML row in `<thead>` or made of `<th>` cells.
+  final bool isHeader;
+
+  /// The row's cells, one per column.
+  final List<CustomTableField> fields;
 }

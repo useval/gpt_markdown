@@ -39,14 +39,14 @@ attached_assets/
 # They assert nothing, take minutes to run, and exist to compare revisions of
 # this package against each other — not to guard behaviour. Keeping them out of
 # `test/` keeps them out of `flutter test` and CI; keeping them untracked keeps
-# them out of the published archive. `docs/performance-baseline.md` records the
+# them out of the published archive. `docs/performance/baseline.mdx` records the
 # numbers they produce, and carries the harness inline so it can be recreated.
 /benchmark/
 
 # Golden comparison artefacts. Written on a failing run, never input.
 test/**/failures/
 
-# Internal competitor comparison. Kept locally; `docs/benchmark.md` is the
+# Internal competitor comparison. Kept locally; `docs/performance/benchmarks.mdx` is the
 # published version, without the third-party chat kit.
 docs/comparison.md
 

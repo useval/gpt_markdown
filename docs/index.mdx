@@ -1,0 +1,117 @@
+---
+title: gpt_markdown
+description: The Flutter renderer for AI output — Markdown, LaTeX, code, tables and links in one widget, fast while the reply streams.
+---
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import streamingMp4 from './videos/streaming.mp4'
+import streamingWebm from './videos/streaming.webm'
+
+<video class="uv-media" autoplay muted loop playsinline width="492" aria-label="A reply streaming into GptMarkdown: a heading, a formula, a list and a code block appear as they arrive">
+  <source src={streamingWebm} type="video/webm" />
+  <source src={streamingMp4} type="video/mp4" />
+</video>
+
+```dart
+GptMarkdown(reply)
+```
+
+One widget renders everything a model writes — rich Markdown, inline and block
+LaTeX, syntax-highlighted code, tables, GitHub alerts, citations, images and
+HTML. While the reply generates, rebuild it with the text received so far: the
+segments that have settled are reused, and only the live tail is rendered again.
+
+```bash
+flutter pub add gpt_markdown
+```
+
+Then follow [Getting started](/docs/getting-started/).
+
+## What it renders
+
+<div class="uv-shots">
+
+![Rich text: a heading, emphasis, a nested list, a quote and links](../screenshots/rich-text.png)
+![Inline and block LaTeX: E = mc², an integral and the quadratic formula](../screenshots/math.png)
+![Tables whose columns follow the alignment row](../screenshots/tables.png)
+![Syntax-highlighted Bash and Dart code blocks with copy buttons](../screenshots/code.png)
+![Task lists, ordered lists and nested bullets](../screenshots/lists.png)
+![App-defined inline components: mentions, channels, emoji and status pills](../screenshots/inline-components.png)
+
+</div>
+
+Each image is one `GptMarkdown` widget in a light Material 3 theme, rendered by
+the package's screenshot generator (`tool/screenshots/`). The only styling is
+softer table borders and compact checkboxes; the inline components in the last
+one are builders the app supplies.
+
+## Why gpt_markdown
+
+<CardGrid>
+  <Card title="Built for model output" icon="pencil">
+    Markdown, LaTeX, code, tables, alerts, citations, images, task lists and
+    HTML in one reply — and unfinished syntax mid-stream renders what exists so far.
+  </Card>
+  <Card title="Fast while it streams" icon="rocket">
+    At 12 KB, each update is 31× faster than in 1.2.1, or 74× with the lazy
+    sliver. [See the benchmarks](/docs/performance/benchmarks/).
+  </Card>
+  <Card title="Yours to style" icon="setting">
+    A style object for every component, app-wide theming with
+    `GptMarkdownThemeData`, and builders when you need a different widget.
+  </Card>
+  <Card title="Extensible" icon="puzzle">
+    `@mentions`, `#channels`, `:emoji:` and your own block syntax, without
+    forking the renderer.
+  </Card>
+</CardGrid>
+
+It handles the cases real apps hit: right-to-left text, text scaling,
+selection, malformed Markdown, autolinks, reduced motion, Flutter web and WASM.
+530 of the 652 CommonMark 0.31.2 spec examples pass on every CI run — see
+[CommonMark conformance](/docs/commonmark/) for the rest.
+
+## The one rule
+
+Two ways to change what you see, and they never overlap:
+
+| | Use it for | Example |
+|---|---|---|
+| **Style object** | Appearance — colours, sizes, padding, fonts | `BlockQuoteStyle(barWidth: 4)` |
+| **Builder** | Structure — replace the widget entirely | `blockQuoteBuilder: …` |
+
+Every component supports both.
+
+:::tip
+If you are reaching for a builder to change a colour, stop — there is a style
+field for it. Builders lose the default structure, and with it every future
+improvement to that component.
+:::
+
+## Three things that catch people out
+
+- A `WidgetSpan` nested inside another placeholder **does not paint on iOS**.
+  The default link is text, so this only bites when the link itself is a
+  widget — the deprecated `linkBuilder`, or an `inlineLinkBuilder` returning
+  `details.asWidgetSpan(...)`. `InlinePattern` already excludes link labels; a
+  `MarkdownComponent` subclass has to declare `scopes` to opt out. See
+  [inline syntax](/docs/inline-syntax/#scopes).
+- **Changing a builder at runtime does nothing** — builders are not compared
+  when deciding to re-render. See [testing](/docs/testing/).
+- **`find.text` rarely finds Markdown text** — prose renders as spans inside
+  one paragraph widget. It does reach content that renders as its own widget,
+  such as a code block. See [testing](/docs/testing/).
+
+## Where next
+
+<CardGrid>
+  <LinkCard title="Getting started" description="Install, render a reply, handle taps." href="/docs/getting-started/" />
+  <LinkCard title="Components" description="Every component with a preview, its syntax, styling and API reference." href="/docs/components/" />
+  <LinkCard title="Markdown syntax" description="Everything it renders, and the rules that decide what stays text." href="/docs/syntax/" />
+  <LinkCard title="Streaming" description="Render a reply as it generates, with reveal animations." href="/docs/streaming/" />
+  <LinkCard title="Customization" description="Style objects, themes and builders." href="/docs/customization/" />
+</CardGrid>
+
+The code samples in these guides are mirrored in `test/docs/snippets_test.dart`,
+which the test suite compiles. Numbers quoted as measurements come from recorded
+runs — the tests in `test/`, or the benchmark harness the performance pages
+describe.

@@ -1,0 +1,161 @@
+{
+  "$comment": "How these docs are published on the company docs site (useval_website/docs, served at useval.ai/docs/gpt-markdown/). The pages are the .mdx files in this folder, with images in images/ and the clip in videos/; they may also use the README screenshots (../screenshots/). Files git ignores (comparison.md) are never published.",
+  "id": "gpt-markdown",
+  "name": "gpt_markdown",
+  "label": "v1 · Open source",
+  "tagline": "Render AI answers in Flutter: markdown, LaTeX math, tables, code and links — while they stream.",
+  "content": "docs",
+  "src": ".",
+  "linkBase": "/docs/",
+  "sidebar": [
+    {
+      "label": "Start here",
+      "items": [
+        {
+          "label": "Overview",
+          "page": "index"
+        },
+        {
+          "label": "Getting started",
+          "page": "getting-started"
+        },
+        {
+          "label": "Markdown syntax",
+          "page": "syntax"
+        },
+        {
+          "label": "Migration",
+          "page": "migration"
+        }
+      ]
+    },
+    {
+      "label": "Components",
+      "items": [
+        {
+          "label": "Overview",
+          "page": "components/index"
+        },
+        {
+          "label": "Text formatting",
+          "page": "components/text-formatting"
+        },
+        {
+          "label": "Link",
+          "page": "components/link"
+        },
+        {
+          "label": "Inline code",
+          "page": "components/inline-code"
+        },
+        {
+          "label": "Citation",
+          "page": "components/citation"
+        },
+        {
+          "label": "Footnotes",
+          "page": "components/footnotes"
+        },
+        {
+          "label": "Heading",
+          "page": "components/heading"
+        },
+        {
+          "label": "Blockquote",
+          "page": "components/blockquote"
+        },
+        {
+          "label": "Alert",
+          "page": "components/alert"
+        },
+        {
+          "label": "Horizontal rule",
+          "page": "components/horizontal-rule"
+        },
+        {
+          "label": "Lists",
+          "page": "components/lists"
+        },
+        {
+          "label": "Task list",
+          "page": "components/task-list"
+        },
+        {
+          "label": "Code block",
+          "page": "components/code-block"
+        },
+        {
+          "label": "Math",
+          "page": "components/math"
+        },
+        {
+          "label": "Table",
+          "page": "components/table"
+        },
+        {
+          "label": "Image",
+          "page": "components/image"
+        }
+      ]
+    },
+    {
+      "label": "Guides",
+      "items": [
+        {
+          "label": "Streaming",
+          "page": "streaming"
+        },
+        {
+          "label": "Customization",
+          "page": "customization"
+        },
+        {
+          "label": "Inline syntax",
+          "page": "inline-syntax"
+        },
+        {
+          "label": "Custom components",
+          "page": "custom-components"
+        },
+        {
+          "label": "Testing",
+          "page": "testing"
+        }
+      ]
+    },
+    {
+      "label": "Reference",
+      "items": [
+        {
+          "label": "GptMarkdown options",
+          "page": "options"
+        },
+        {
+          "label": "CommonMark conformance",
+          "page": "commonmark"
+        },
+        {
+          "label": "Rendering architecture",
+          "page": "architecture"
+        }
+      ]
+    },
+    {
+      "label": "Performance",
+      "items": [
+        {
+          "label": "Benchmarks",
+          "page": "performance/benchmarks"
+        },
+        {
+          "label": "Performance baseline",
+          "page": "performance/baseline"
+        },
+        {
+          "label": "Native measurements",
+          "page": "performance/native"
+        }
+      ]
+    }
+  ]
+}

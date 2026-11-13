@@ -36,11 +36,11 @@
 ## ✨ Why gpt_markdown?
 
 - **Built for AI output** — Markdown, LaTeX, code blocks, tables, alerts, citations, images, task lists, and mixed rich content in one response.
-- **Streaming that stays fast** — settled segments are reused while the live tail updates. At 12 KB, each update is 31× faster than in 1.2.1—or 74× faster with the lazy sliver. [See the benchmarks](docs/benchmark.md).
+- **Streaming that stays fast** — settled segments are reused while the live tail updates. At 12 KB, each update is 31× faster than in 1.2.1—or 74× faster with the lazy sliver. [See the benchmarks](docs/performance/benchmarks.mdx).
 - **Production-level control** — style sheets, Flutter theme extensions, component builders, callbacks, and custom components.
 - **Extensible inline UI** — add `@mentions`, `#channels`, `:emoji:`, issue references, and product-specific syntax without forking the renderer.
 - **Designed for real-world edge cases** — RTL, text scaling, selection, malformed Markdown, autolinks, nested content, reduced motion, Flutter web, and WASM.
-- **CommonMark, tested** — 530 of the 652 CommonMark 0.31.2 spec examples pass on every CI run; the rest are raw HTML, indented code, and three documented leniencies for model output. [See the details](docs/commonmark.md).
+- **CommonMark, tested** — 530 of the 652 CommonMark 0.31.2 spec examples pass on every CI run; the rest are raw HTML, indented code, and three documented leniencies for model output. [See the details](docs/commonmark.mdx).
 
 ## 🧩 Everything AI output needs
 
@@ -93,13 +93,13 @@ GptMarkdown(
 )
 ```
 
-The reveal adapts to incoming text, finishes when generation ends, and respects reduced-motion settings. See the [streaming guide](docs/streaming.md) for animation modes and configuration.
+The reveal adapts to incoming text, finishes when generation ends, and respects reduced-motion settings. See the [streaming guide](docs/streaming.mdx) for animation modes and configuration.
 
 For long responses and documents, use `SliverGptMarkdown` inside a
 `CustomScrollView`. It creates spans and widgets only for the segments requested
 by the viewport, including its cache extent. The regular `GptMarkdown` widget is
 cheaper for short content and remains the option for character reveal. See the
-[rendering architecture guide](docs/rendering-architecture.md).
+[rendering architecture guide](docs/architecture.mdx).
 
 ## 📝 Markdown, LaTeX, and rich AI output
 
@@ -162,7 +162,7 @@ GptMarkdown(
 )
 ```
 
-Set styles app-wide with `GptMarkdownThemeData`. Use builders such as `codeBuilder`, `tableBuilder`, and `imageBuilder` to replace components, or span-based builders for links, citations, and inline code. See [customization](docs/customization.md).
+Set styles app-wide with `GptMarkdownThemeData`. Use builders such as `codeBuilder`, `tableBuilder`, and `imageBuilder` to replace components, or span-based builders for links, citations, and inline code. See [customization](docs/customization.mdx).
 
 ## 🏷️ App-specific inline UI
 
@@ -189,27 +189,30 @@ GptMarkdown(
 
 Only known channel names are matched, longest-first. Patterns exclude link labels by default; unrecognized tokens such as `#2959` remain text.
 
-Use `blockComponents` for custom blocks and `inlineDirectives` for payloads the parser must leave untouched. See [custom components](docs/custom-components.md).
+Use `blockComponents` for custom blocks and `inlineDirectives` for payloads the parser must leave untouched. See [custom components](docs/custom-components.mdx).
 
-**Upgrading?** Passing `components` or `inlineComponents`, even an empty list, selects the deprecated legacy parser. Replace them to use the new pipeline. See the [migration guide](MIGRATION.md) and [changelog](CHANGELOG.md).
+**Upgrading?** Passing `components` or `inlineComponents`, even an empty list, selects the deprecated legacy parser. Replace them to use the new pipeline. See the [migration guide](docs/migration.mdx) and [changelog](CHANGELOG.md).
 
 ## 🔗 Autolinks
 
-Bare URLs, `www.` hosts, emails, and angle autolinks work automatically. Add custom schemes with `autolinkSchemes: const {'myapp'}`, or disable autolinking with `autolink: false`. Explicit `[label](url)` links still work. See [inline syntax](docs/inline-syntax.md).
+Bare URLs, `www.` hosts, emails, and angle autolinks work automatically. Add custom schemes with `autolinkSchemes: const {'myapp'}`, or disable autolinking with `autolink: false`. Explicit `[label](url)` links still work. See [inline syntax](docs/inline-syntax.mdx).
 
 ## 📚 Documentation
 
 | Guide | Covers |
 |---|---|
-| [Getting started](docs/getting-started.md) | Installation, syntax, taps, LaTeX, RTL, and selection |
-| [Customization](docs/customization.md) | Style classes, themes, builders, and callbacks |
-| [Streaming](docs/streaming.md) | Pacing, performance, accessibility, and limitations |
-| [Rendering architecture](docs/rendering-architecture.md) | Extension registration, lazy rendering, and performance policies |
-| [Inline syntax](docs/inline-syntax.md) | Autolinks, mentions, channels, and scopes |
-| [Custom components](docs/custom-components.md) | Block and inline extensions |
-| [`GptMarkdown` options](docs/api-options.md) | Every constructor option and default |
-| [Benchmarks](docs/benchmark.md) | Methodology, results, and limitations |
-| [Migration](MIGRATION.md) | What each release changes, newest first |
+| [Getting started](docs/getting-started.mdx) | Installation, taps, text style, RTL, and selection |
+| [Markdown syntax](docs/syntax.mdx) | Everything it renders, and the rules that decide what stays text |
+| [Components](docs/components/index.mdx) | One page per component: preview, syntax, styling, and API reference |
+| [Math](docs/components/math.mdx) | Formulas, taps, your own renderer, and dollar-sign maths |
+| [Customization](docs/customization.mdx) | Style classes, themes, builders, and callbacks |
+| [Streaming](docs/streaming.mdx) | Pacing, performance, accessibility, and limitations |
+| [Rendering architecture](docs/architecture.mdx) | Extension registration, lazy rendering, and performance policies |
+| [Inline syntax](docs/inline-syntax.mdx) | Autolinks, mentions, channels, and scopes |
+| [Custom components](docs/custom-components.mdx) | Block and inline extensions |
+| [`GptMarkdown` options](docs/options.mdx) | Every constructor option and default |
+| [Benchmarks](docs/performance/benchmarks.mdx) | Methodology, results, and limitations |
+| [Migration](docs/migration.mdx) | What each release changes, newest first |
 
 ## When to use gpt_markdown
 
@@ -219,7 +222,7 @@ images, and citations together in one widget.
 
 At 12 KB, per-chunk streaming is **31× faster with `GptMarkdown`** and
 **74× faster with `SliverGptMarkdown`** than in 1.2.1.
-[See benchmark methodology and results](docs/benchmark.md).
+[See benchmark methodology and results](docs/performance/benchmarks.mdx).
 
 Build ChatGPT-style chat apps, copilots, and AI assistants with themes,
 custom builders, and inline UI. Works with text output from ChatGPT,

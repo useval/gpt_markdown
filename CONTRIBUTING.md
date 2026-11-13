@@ -11,8 +11,8 @@ problem**, together with how you build `GptMarkdown`. Please search open issues
 and pull requests first.
 
 Many requests need no change to the package — a style field or a builder often
-already covers it. See [customization](docs/customization.md) and
-[API options](docs/api-options.md).
+already covers it. See [customization](docs/customization.mdx) and
+[API options](docs/options.mdx).
 
 ## Setup
 
@@ -53,7 +53,13 @@ argument lists them. The ones you will use most:
   text rendering differs between platforms. Run them with
   `just check --golden`. If your change is meant to alter the default look,
   regenerate them with `just update-goldens` and review the images; see
-  [docs/testing.md](docs/testing.md#golden-tests).
+  [docs/testing.mdx](docs/testing.mdx#golden-tests).
+- **Component pages stay in step with `lib/`.** The API reference on each page
+  under `docs/components/` is generated: run `dart run tool/docs/api_reference.dart`
+  after changing a style field, a builder typedef or a doc comment
+  (`test/docs/api_reference_test.dart` fails until you do). Each page's preview
+  and Markdown tab come from `tool/screenshots/components/<name>.md`; re-render
+  with `./scripts/screenshots.sh`.
 - **Doc examples compile.** Code samples in `docs/` are mirrored in
   `test/docs/snippets_test.dart`; update both when you change an example.
 
