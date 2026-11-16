@@ -9,6 +9,24 @@ import 'inline_patterns_demo.dart';
 import 'selection_demo.dart';
 // import 'package:gpt_markdown/custom_widgets/selectable_adapter.dart';
 
+
+/// Val's colours, so the playground matches useval.ai: neutral near-black
+/// surfaces and the site's warm accent.
+const _valAccent = Color(0xFFFF8A4C);
+
+ColorScheme _valScheme(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  return ColorScheme.fromSeed(
+    seedColor: _valAccent,
+    brightness: brightness,
+    dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+  ).copyWith(
+    primary: _valAccent,
+    onPrimary: const Color(0xFF1A0E07),
+    surface: dark ? const Color(0xFF0E0D0C) : const Color(0xFFF7F6F2),
+  );
+}
+
 void main() {
   runApp(const PlaygroundApp());
 }
@@ -168,16 +186,16 @@ class _PlaygroundAppState extends State<PlaygroundApp> {
       themeMode: _themeMode,
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.light,
-        colorSchemeSeed: const Color(0xFF6366F1),
+        colorScheme: _valScheme(Brightness.light),
+        scaffoldBackgroundColor: _valScheme(Brightness.light).surface,
         extensions: [
           GptMarkdownThemeData(brightness: Brightness.light),
         ],
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
-        colorSchemeSeed: const Color(0xFF6366F1),
+        colorScheme: _valScheme(Brightness.dark),
+        scaffoldBackgroundColor: _valScheme(Brightness.dark).surface,
         extensions: [
           GptMarkdownThemeData(brightness: Brightness.dark),
         ],
@@ -273,7 +291,7 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: const Color(0xFF6366F1),
+              color: _valAccent,
               borderRadius: BorderRadius.circular(6),
             ),
             child: const Center(
@@ -428,7 +446,7 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
         _PaneHeader(label: 'Editor', icon: Icons.edit_rounded, theme: theme),
         Expanded(
           child: Container(
-            color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8F9FA),
+            color: isDark ? const Color(0xFF0B0B0D) : const Color(0xFFF7F6F2),
             child: TextField(
               controller: _controller,
               maxLines: null,
@@ -439,9 +457,9 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                 fontSize: 13.5,
                 height: 1.6,
                 color:
-                    isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1C2128),
+                    isDark ? const Color(0xFFEDEBE7) : const Color(0xFF1A1918),
               ),
-              cursorColor: const Color(0xFF6366F1),
+              cursorColor: _valAccent,
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.all(20),
                 border: InputBorder.none,
@@ -515,11 +533,11 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                     // Styling only — no builder needed, and the chip keeps
                     // wrapping, selection and baseline alignment.
                     inlineCodeStyle: InlineCodeStyle(
-                      color: const Color(0xFF6366F1),
+                      color: _valAccent,
                       backgroundColor:
-                          const Color(0xFF6366F1).withValues(alpha: 0.12),
+                          _valAccent.withValues(alpha: 0.12),
                       borderColor:
-                          const Color(0xFF6366F1).withValues(alpha: 0.35),
+                          _valAccent.withValues(alpha: 0.35),
                     ),
                     onLinkTap: (url, title) {},
                   );
@@ -609,7 +627,7 @@ class _ToolbarButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: active
-                ? const Color(0xFF6366F1).withValues(alpha: 0.15)
+                ? _valAccent.withValues(alpha: 0.15)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -619,7 +637,7 @@ class _ToolbarButton extends StatelessWidget {
                     icon,
                     size: 18,
                     color: active
-                        ? const Color(0xFF6366F1)
+                        ? _valAccent
                         : theme.colorScheme.onSurfaceVariant,
                   )
                 : Text(
@@ -628,7 +646,7 @@ class _ToolbarButton extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: active
-                          ? const Color(0xFF6366F1)
+                          ? _valAccent
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -660,7 +678,7 @@ class _SampleChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           color: active
-              ? const Color(0xFF6366F1)
+              ? _valAccent
               : theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(20),
         ),
@@ -733,7 +751,7 @@ class _PubBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFF6366F1),
+        color: _valAccent,
         borderRadius: BorderRadius.circular(6),
       ),
       child: const Text(
