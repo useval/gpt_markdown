@@ -183,4 +183,68 @@ void main() {
     expect(vivid, isTrue);
     await tester.pump(const Duration(seconds: 2));
   });
+
+  group('RevealStyleDetails', () {
+    test('defaultStyle is the effect\'s own style', () {
+      for (final effect in GptMarkdownAnimation.values) {
+        final details = RevealStyleDetails(
+          effect: effect,
+          progress: 0.4,
+          color: _text,
+          accent: _accent,
+          fontSize: 20,
+        );
+        // Compared as text: blurIn's Paint has no value equality.
+        expect(
+          details.defaultStyle().toString(),
+          revealStyleFor(
+            effect,
+            0.4,
+            _text,
+            accent: _accent,
+            fontSize: 20,
+          ).toString(),
+          reason: effect.name,
+        );
+      }
+    });
+
+    test('a builder styles each word in place of the effect', () {
+      final asked = <RevealStyleDetails>[];
+      final out = applyReveal(
+        spans: const [TextSpan(text: 'one two')],
+        revealed: 7,
+        effect: GptMarkdownAnimation.fade,
+        // The second word's group starts at the space before it.
+        progressFor: (index) => index < 3 ? 0.5 : 0.25,
+        defaultColor: _text,
+        styleBuilder: (details) {
+          asked.add(details);
+          return const TextStyle(letterSpacing: 2);
+        },
+      );
+      // One call per word, at that word's progress, in its settled colour.
+      expect(asked.map((d) => d.progress), [0.5, 0.25]);
+      expect(asked.every((d) => d.color == _text), isTrue);
+      final pieces = (out.single as TextSpan).children ?? out;
+      expect(
+        pieces.whereType<TextSpan>().map((s) => s.style?.letterSpacing),
+        everyElement(2),
+      );
+    });
+
+    test('a builder returning null leaves the text as it will settle', () {
+      final out = applyReveal(
+        spans: const [TextSpan(text: 'one two')],
+        revealed: 7,
+        effect: GptMarkdownAnimation.fade,
+        progressFor: (_) => 0.5,
+        defaultColor: _text,
+        styleBuilder: (_) => null,
+      );
+      expect(out, hasLength(1));
+      expect((out.single as TextSpan).toPlainText(), 'one two');
+      expect((out.single as TextSpan).style, isNull);
+    });
+  });
 }

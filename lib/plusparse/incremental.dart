@@ -62,6 +62,7 @@ class _IncrementalMdView extends StatefulWidget {
     this.revealing = false,
     this.charactersPerSecond = 300,
     this.revealFadeSeconds = 0.25,
+    this.revealStyleBuilder,
     this.blockAnimationDuration = const Duration(milliseconds: 200),
     this.blockAnimationCurve = Curves.easeOut,
     this.holdMathDollars = false,
@@ -86,6 +87,10 @@ class _IncrementalMdView extends StatefulWidget {
 
   final double charactersPerSecond;
   final double revealFadeSeconds;
+
+  /// Styles the characters still arriving in place of [effect]'s own look.
+  final RevealStyleBuilder? revealStyleBuilder;
+
   final Duration blockAnimationDuration;
   final Curve blockAnimationCurve;
 
@@ -1004,6 +1009,7 @@ class _IncrementalMdViewState extends State<_IncrementalMdView>
                         DefaultTextStyle.of(context).style.fontSize ??
                         14,
                   ),
+          styleBuilder: widget.revealStyleBuilder,
         ),
       );
     }

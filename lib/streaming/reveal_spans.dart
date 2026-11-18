@@ -115,7 +115,8 @@ int _count(InlineSpan span) {
 ///   nothing below the reading position is laid out before it is meant to be
 ///   seen, and nothing pops in there later.
 ///
-/// [accent] and [fontSize] are passed through to [revealStyleFor].
+/// [accent] and [fontSize] are passed through to [revealStyleFor], or to
+/// [styleBuilder] in its place when one is given.
 List<InlineSpan> applyReveal({
   required List<InlineSpan> spans,
   required int revealed,
@@ -125,6 +126,7 @@ List<InlineSpan> applyReveal({
   int window = 64,
   Color? accent,
   double? fontSize,
+  RevealStyleBuilder? styleBuilder,
 }) {
   final from = effect.animatesCharacters ? revealed - window : revealed;
   final out = <InlineSpan>[];
@@ -139,6 +141,7 @@ List<InlineSpan> applyReveal({
     inheritedColor: defaultColor,
     accent: accent,
     fontSize: fontSize,
+    styleBuilder: styleBuilder,
   );
   return out;
 }
@@ -159,6 +162,7 @@ void _walk({
   required Color inheritedColor,
   Color? accent,
   double? fontSize,
+  RevealStyleBuilder? styleBuilder,
 }) {
   for (final span in spans) {
     if (cursor.value >= revealed) {
@@ -197,6 +201,7 @@ void _walk({
             inheritedColor: inheritedColor,
             accent: accent,
             fontSize: fontSize,
+            styleBuilder: styleBuilder,
           );
           return revealedInner;
         }),
@@ -232,6 +237,7 @@ void _walk({
         recognizer: span.recognizer,
         accent: accent,
         fontSize: fontSize,
+        styleBuilder: styleBuilder,
       );
     }
     final children = span.children;
@@ -247,6 +253,7 @@ void _walk({
         inheritedColor: color,
         accent: accent,
         fontSize: fontSize,
+        styleBuilder: styleBuilder,
       );
     }
     if (pieces.isEmpty) {
@@ -317,6 +324,7 @@ void _emitText({
   GestureRecognizer? recognizer,
   Color? accent,
   double? fontSize,
+  RevealStyleBuilder? styleBuilder,
 }) {
   final start = cursor.value;
   final end = start + text.length;
@@ -417,13 +425,24 @@ void _emitText({
     } else if (pieceFrom >= 0 && level == pieceLevel) {
       // Same step of the same entrance as the group before it: one span.
     } else {
-      final delta = revealStyleFor(
-        effect,
-        level / _progressLevels,
-        color,
-        accent: accent,
-        fontSize: fontSize,
-      );
+      final progress = level / _progressLevels;
+      final delta = styleBuilder == null
+          ? revealStyleFor(
+              effect,
+              progress,
+              color,
+              accent: accent,
+              fontSize: fontSize,
+            )
+          : styleBuilder(
+              RevealStyleDetails(
+                effect: effect,
+                progress: progress,
+                color: color,
+                accent: accent,
+                fontSize: fontSize,
+              ),
+            );
       flushPiece(i);
       if (delta == null) {
         if (plainFrom < 0) {
