@@ -1,3 +1,11 @@
+## Unreleased
+
+### Added
+
+* `revealStyleBuilder` draws streamed text arriving in a style of your own,
+  given each character's progress and colour in a `RevealStyleDetails`. The
+  `animation` still paces the reveal.
+
 ## 1.4.1
 
 ### Changed

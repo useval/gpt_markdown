@@ -70,11 +70,13 @@ equally deprecated `MarkdownComponent.globalComponents` or
 | `isStreaming` | `true` | Says whether more source may arrive |
 | `charactersPerSecond` | `300` | Adaptive reveal baseline |
 | `revealFadeSeconds` | `0.25` | Time for an arriving character to settle |
+| `revealStyleBuilder` | `null` | Draws an arriving character in your own style |
 | `blockAnimationDuration` | `200 ms` | Duration of a block entrance |
 | `blockAnimationCurve` | `Curves.easeOut` | Easing used by block entrances |
 
-`isStreaming`, `charactersPerSecond` and `revealFadeSeconds` matter only when a
-character reveal is active. Block animation is an independent axis.
+`isStreaming`, `charactersPerSecond`, `revealFadeSeconds` and
+`revealStyleBuilder` matter only when a character reveal is active. Block
+animation is an independent axis.
 The incremental segment cache applies with `animation: none` as well;
 `incremental: false` gives it up along with the rest of plusparse. See
 [streaming and incremental rendering](/docs/streaming/).

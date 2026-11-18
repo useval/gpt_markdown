@@ -334,6 +334,23 @@ class _ReplyViewState extends State<ReplyView> {
   );
 }
 
+/// The `revealStyleBuilder` snippet from `docs/streaming.mdx`.
+GptMarkdown revealStyleSnippet(String streamedText, bool generating) =>
+    GptMarkdown(
+      streamedText,
+      animation: GptMarkdownAnimation.fade,
+      isStreaming: generating,
+      // Each word fades in out of a soft glow.
+      revealStyleBuilder: (details) => details.defaultStyle()?.copyWith(
+        shadows: [
+          Shadow(
+            color: details.color.withValues(alpha: 1 - details.progress),
+            blurRadius: 6 * (1 - details.progress),
+          ),
+        ],
+      ),
+    );
+
 /// The getting-started widget from `example/example.md`.
 class AnswerView extends StatelessWidget {
   const AnswerView({super.key, required this.reply});
@@ -606,6 +623,7 @@ void main() {
     expect(plainTextSnippet, isNotNull);
     expect(() => safeLinkTap('https://example.com'), returnsNormally);
     expect(ReplyView, isNotNull);
+    expect(revealStyleSnippet('x', true), isA<GptMarkdown>());
     expect(AnswerView, isNotNull);
     expect(exampleTheme, isNotNull);
     expect(exampleOddsAndEnds(), hasLength(6));

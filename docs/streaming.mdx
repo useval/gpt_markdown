@@ -181,6 +181,35 @@ with the whole message.
 word-sized runs to preserve shaping, kerning and stable wrapping. `wave` is the
 only effect that needs neighboring characters styled independently.
 
+### A style of your own
+
+`revealStyleBuilder` draws arriving text in your own style while keeping
+everything else about the reveal: `animation` still sets the pace and whether
+words or single letters enter as one. The builder gets a `RevealStyleDetails`
+with the character's progress through its entrance (0 to 1) and the colour it
+settles into, and returns a style applied over the text's own, or null to draw
+it as it will settle. `details.defaultStyle()` is the effect's own style, to
+build on:
+
+```dart
+GptMarkdown(
+  streamedText,
+  animation: GptMarkdownAnimation.fade,
+  isStreaming: generating,
+  // Each word fades in out of a soft glow.
+  revealStyleBuilder: (details) => details.defaultStyle()?.copyWith(
+    shadows: [
+      Shadow(
+        color: details.color.withValues(alpha: 1 - details.progress),
+        blurRadius: 6 * (1 - details.progress),
+      ),
+    ],
+  ),
+)
+```
+
+It is not called for `none` or `typewriter`, whose characters never animate.
+
 ## Block animations
 
 Tables, fenced code, block maths, rules and images are laid-out widgets. They

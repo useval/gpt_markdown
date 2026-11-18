@@ -179,6 +179,62 @@ TextStyle? revealStyleFor(
   }
 }
 
+/// Styles a character mid-entrance in place of [revealStyleFor]; see
+/// `GptMarkdown.revealStyleBuilder`.
+///
+/// Held to the same contract: the result is a delta over the span's own
+/// style, and null draws the character exactly as it will settle.
+typedef RevealStyleBuilder = TextStyle? Function(RevealStyleDetails details);
+
+/// What [RevealStyleBuilder] is told about a character mid-entrance.
+///
+/// This is the builder's only parameter: new information arrives as a new
+/// field, never as a new argument.
+@immutable
+final class RevealStyleDetails {
+  /// Creates reveal style details.
+  const RevealStyleDetails({
+    required this.effect,
+    required this.progress,
+    required this.color,
+    this.accent,
+    this.fontSize,
+  });
+
+  /// The effect the reveal runs. It still decides whether a word or a single
+  /// letter enters as one: [GptMarkdownAnimation.wave] styles letters, the
+  /// others whole words.
+  final GptMarkdownAnimation effect;
+
+  /// How far through its entrance the character is: 0 the moment it is
+  /// revealed, approaching 1 as it settles. A settled character is not
+  /// styled, so this is never 1.
+  ///
+  /// It moves in small steps rather than continuously, so neighbouring
+  /// words revealed moments apart can share one span.
+  final double progress;
+
+  /// The colour the character settles into.
+  final Color color;
+
+  /// What [GptMarkdownAnimation.wave]'s crest lands in, when the renderer
+  /// gives one.
+  final Color? accent;
+
+  /// The text's laid-out size.
+  final double? fontSize;
+
+  /// The style [effect] gives the character on its own — to return as it is,
+  /// or to build on.
+  TextStyle? defaultStyle() => revealStyleFor(
+    effect,
+    progress,
+    color,
+    accent: accent,
+    fontSize: fontSize,
+  );
+}
+
 /// Peak blur radius, in logical pixels, at the instant a character appears,
 /// when no font size is known.
 const double _blurSigma = 3;

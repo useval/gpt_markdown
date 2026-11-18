@@ -181,6 +181,7 @@ class GptMarkdown extends StatelessWidget {
     this.isStreaming = true,
     this.charactersPerSecond = 300,
     this.revealFadeSeconds = 0.25,
+    this.revealStyleBuilder,
     this.blockAnimationDuration = const Duration(milliseconds: 200),
     this.blockAnimationCurve = Curves.easeOut,
     this.useDollarSignsForLatex = false,
@@ -663,6 +664,32 @@ class GptMarkdown extends StatelessWidget {
   /// [GptMarkdownAnimation.typewriter], whose characters are final on arrival.
   final double revealFadeSeconds;
 
+  /// Draws characters mid-entrance in a style of your own, in place of the
+  /// one [animation] gives them.
+  ///
+  /// [animation] still sets the pace and whether whole words or single
+  /// letters enter as one; this only changes how they look on the way in.
+  /// Not called for [GptMarkdownAnimation.none] or
+  /// [GptMarkdownAnimation.typewriter], whose characters never animate, nor
+  /// when [components] or [inlineComponents] are given.
+  ///
+  /// ```dart
+  /// GptMarkdown(
+  ///   reply,
+  ///   animation: GptMarkdownAnimation.fade,
+  ///   // Each word fades in out of a soft glow.
+  ///   revealStyleBuilder: (details) => details.defaultStyle()?.copyWith(
+  ///     shadows: [
+  ///       Shadow(
+  ///         color: details.color.withValues(alpha: 1 - details.progress),
+  ///         blurRadius: 6 * (1 - details.progress),
+  ///       ),
+  ///     ],
+  ///   ),
+  /// )
+  /// ```
+  final RevealStyleBuilder? revealStyleBuilder;
+
   /// How long [blockAnimation] takes.
   final Duration blockAnimationDuration;
 
@@ -823,6 +850,7 @@ class GptMarkdown extends StatelessWidget {
             revealing: _usesSpanReveal,
             charactersPerSecond: charactersPerSecond,
             revealFadeSeconds: revealFadeSeconds,
+            revealStyleBuilder: revealStyleBuilder,
             blockAnimationDuration: blockAnimationDuration,
             blockAnimationCurve: blockAnimationCurve,
             holdMathDollars: dollarsAreMath,
