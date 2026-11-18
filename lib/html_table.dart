@@ -903,6 +903,17 @@ class _RenderHtmlTable extends RenderBox
     final canvas = context.canvas;
     final width = size.width;
 
+    // The fills below are rectangles while the outer border is a rounded
+    // rectangle: without this clip a full-width header row squares off the
+    // top corners, showing a tinted block outside the rounded outline. The
+    // border itself is painted after the clip is lifted, so this never eats
+    // into its stroke.
+    final rounded = _borderRadius != BorderRadius.zero;
+    if (rounded) {
+      canvas.save();
+      canvas.clipRRect(_borderRadius.toRRect(offset & size));
+    }
+
     // Header rows, then stripes on every other data row, then header cells
     // that stand in data rows.
     final fill = Paint();
@@ -941,6 +952,7 @@ class _RenderHtmlTable extends RenderBox
       }
       child = childAfter(child);
     }
+    if (rounded) canvas.restore();
 
     defaultPaint(context, offset);
 
