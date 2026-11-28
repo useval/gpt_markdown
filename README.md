@@ -19,9 +19,9 @@
 </p>
 
 <p align="center">
-  <a href="https://gptmarkdown.com">🌐 Website</a> ·
-  <a href="https://gptmarkdown.com/docs">📖 Documentation</a> ·
-  <a href="https://gptmarkdown.com/playground">🎮 Live Playground</a> ·
+  <a href="https://useval.ai/gpt-markdown">🌐 Website</a> ·
+  <a href="https://useval.ai/docs/gpt-markdown/">📖 Documentation</a> ·
+  <a href="https://useval.ai/gpt-markdown/playground">🎮 Live Playground</a> ·
   <a href="https://pub.dev/packages/gpt_markdown">📦 pub.dev</a>
 </p>
 
@@ -230,9 +230,9 @@ Claude, Gemini, and other LLMs, as well as general Markdown documents.
 
 ## Built by Val
 
-`gpt_markdown` is the open-source rendering foundation of [Val](https://useval.io), the live visual layer for AI agents.
+`gpt_markdown` is the open-source rendering foundation of [Val](https://useval.ai), the live visual layer for AI agents.
 
-Building an AI product that needs richer output than a text box? [Request early access to Val.](https://useval.io/)
+Building an AI product that needs richer output than a text box? [Request early access to Val.](https://useval.ai)
 
 ## 💬 Community
 
