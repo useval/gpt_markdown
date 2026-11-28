@@ -1,6 +1,11 @@
 ## Unreleased
 
 * Package links point to useval.ai: homepage, documentation and README links.
+* Fixed: on Flutter 3.50, formulas and inline code in a right-to-left
+  paragraph showed in swapped order. Flutter now orders them correctly
+  itself, and the package's workaround for older versions reordered them a
+  second time. The workaround now checks where Flutter put them and only
+  corrects what is wrong, so both old and new Flutter versions are right.
 
 ## 1.4.1
 
