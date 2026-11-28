@@ -220,4 +220,4 @@ GptMarkdown(reply, autolink: false)
 | [Customization](https://github.com/useval/gpt_markdown/blob/main/docs/customization.md) | Every style field and builder |
 | [Streaming](https://github.com/useval/gpt_markdown/blob/main/docs/streaming.md) | Pacing, performance, limitations |
 | [Inline syntax](https://github.com/useval/gpt_markdown/blob/main/docs/inline-syntax.md) | Autolinks, patterns, scopes |
-| [Playground](https://gptmarkdown.com/playground) | Try it in the browser |
+| [Playground](https://useval.ai/gpt-markdown/playground) | Try it in the browser |

@@ -1,7 +1,8 @@
 name: gpt_markdown
 description: "Powerful Flutter Markdown & LaTeX Renderer: Rich Text, Math, Tables, Links, and Text Selection. Ideal for ChatGPT, Gemini, and more."
 version: 1.4.1
-homepage: https://gptmarkdown.com
+homepage: https://useval.ai/gpt-markdown
+documentation: https://useval.ai/docs/gpt-markdown/
 repository: https://github.com/useval/gpt_markdown
 issue_tracker: https://github.com/useval/gpt_markdown/issues
 
