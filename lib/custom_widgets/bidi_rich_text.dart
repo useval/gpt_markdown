@@ -17,9 +17,15 @@
 /// the placeholder sizes to the engine in the order the engine will consume
 /// them. The children are matched back up with the boxes afterwards.
 ///
+/// The probe also shows where *this* engine puts each placeholder, and the
+/// sizes are permuted only as far as needed to land them in the right place.
+/// Newer engines (Flutter 3.50 does) already order placeholders correctly,
+/// so there nothing is permuted; older ones get the full fix.
+///
 /// When the computed order turns out to be the identity — no RTL involved, a
-/// single placeholder per line, an all-LTR line — nothing is changed and the
-/// behaviour is identical to a plain [RichText].
+/// single placeholder per line, an all-LTR line, an engine that already gets
+/// it right — nothing is changed and the behaviour is identical to a plain
+/// [RichText].
 library;
 
 import 'dart:ui' as ui;
@@ -107,6 +113,31 @@ void _reverseRange(List<int> list, int start, int end) {
     i++;
     j--;
   }
+}
+
+/// Which placeholder's dimensions to feed into each of a line's engine slots.
+///
+/// [visualOrder] is the correct left-to-right order of the line's
+/// placeholders (logical indices). [slotOrder] is the engine's left-to-right
+/// order of its slots, as indices into the dimensions it was given. Both hold
+/// the indices `start` to `start + length - 1`.
+///
+/// Element `i` of the result is the logical placeholder whose dimensions go
+/// in slot `start + i`, so that the `v`-th slot from the left holds
+/// `visualOrder[v]`. An engine that already places placeholders correctly has
+/// `slotOrder == visualOrder`, and the result is the identity.
+@visibleForTesting
+List<int> placeholderFeedOrder({
+  required List<int> visualOrder,
+  required List<int> slotOrder,
+  int start = 0,
+}) {
+  assert(visualOrder.length == slotOrder.length);
+  final feed = List<int>.filled(visualOrder.length, 0);
+  for (var v = 0; v < visualOrder.length; v++) {
+    feed[slotOrder[v] - start] = visualOrder[v];
+  }
+  return feed;
 }
 
 /// A [RichText] that lays inline widgets out in the correct visual order in
@@ -334,7 +365,11 @@ class RenderBidiParagraph extends RenderParagraph
           probe.getLineBoundary(TextPosition(offset: offsets[end])) == line) {
         end++;
       }
-      final lineOrder = _visualOrderForLine(probe, boxes, offsets, start, end);
+      final lineOrder = placeholderFeedOrder(
+        visualOrder: _visualOrderForLine(probe, boxes, offsets, start, end),
+        slotOrder: _slotOrderForLine(boxes, start, end),
+        start: start,
+      );
       for (var i = 0; i < lineOrder.length; i++) {
         if (lineOrder[i] != start + i) {
           changed = true;
@@ -344,6 +379,22 @@ class RenderBidiParagraph extends RenderParagraph
       start = end;
     }
     return changed ? order : null;
+  }
+
+  /// The engine's own slots for the placeholders `[start, end)` of one line,
+  /// left to right: element `v` is the index of the dimension the engine put
+  /// in the `v`-th slot from the left.
+  ///
+  /// This is read off the probe rather than assumed, because engines differ:
+  /// before the fix for flutter/flutter#54400 the slots follow logical order,
+  /// after it they already follow the correct visual order.
+  List<int> _slotOrderForLine(List<ui.TextBox> boxes, int start, int end) {
+    final slots = <int>[for (var i = start; i < end; i++) i];
+    slots.sort((a, b) {
+      final byLeft = boxes[a].left.compareTo(boxes[b].left);
+      return byLeft != 0 ? byLeft : a.compareTo(b);
+    });
+    return slots;
   }
 
   /// Visual (left to right) order of the placeholders `[start, end)` of one
