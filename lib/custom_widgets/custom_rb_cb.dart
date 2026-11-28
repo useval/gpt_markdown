@@ -14,6 +14,19 @@ Widget _sized(double? size, Widget child) {
   return SizedBox(width: size, height: size, child: child);
 }
 
+/// Gives [marker] a transparent [Material] when nothing above provides one.
+///
+/// `Checkbox` and `Radio` paint their ink on the nearest `Material` and
+/// throw without one. Apps built on `WidgetsApp`, Cupertino, or an overlay
+/// have none, so a task list there crashed (#154). An existing `Material`
+/// is left alone, so ink still lands on the app's own surface.
+Widget _onMaterial(BuildContext context, Widget marker) {
+  if (Material.maybeOf(context) != null) {
+    return marker;
+  }
+  return Material(type: MaterialType.transparency, child: marker);
+}
+
 /// Wraps a marker and its label in the row layout both markers share.
 ///
 /// Nested rows let their enclosing paragraph scale the whole widget. Direct
@@ -93,19 +106,24 @@ class CustomRb extends StatelessWidget {
       scalesItsOwnText: scalesItsOwnText,
       textDirection: textDirection,
       spacing: spacing,
-      marker: RadioGroup(
-        groupValue: true,
-        onChanged: (v) {
-          if (interactive && changed != null && v != null) {
-            changed(v);
-          }
-        },
-        child: _sized(
-          style.size,
-          Radio<bool>(
-            value: value,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            fillColor: checked == null ? null : WidgetStatePropertyAll(checked),
+      marker: _onMaterial(
+        context,
+        RadioGroup(
+          groupValue: true,
+          onChanged: (v) {
+            if (interactive && changed != null && v != null) {
+              changed(v);
+            }
+          },
+          child: _sized(
+            style.size,
+            Radio<bool>(
+              value: value,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              fillColor: checked == null
+                  ? null
+                  : WidgetStatePropertyAll(checked),
+            ),
           ),
         ),
       ),
@@ -160,23 +178,28 @@ class CustomCb extends StatelessWidget {
       scalesItsOwnText: scalesItsOwnText,
       textDirection: textDirection,
       spacing: spacing,
-      marker: _sized(
-        style.size,
-        Checkbox(
-          value: value,
-          activeColor: style.checkedColor,
-          checkColor: style.checkColor,
-          side: unchecked == null
-              ? null
-              : BorderSide(color: unchecked, width: 2),
-          shape: radius == null
-              ? null
-              : RoundedRectangleBorder(borderRadius: BorderRadius.all(radius)),
-          onChanged: (next) {
-            if (interactive && changed != null && next != null) {
-              changed(next);
-            }
-          },
+      marker: _onMaterial(
+        context,
+        _sized(
+          style.size,
+          Checkbox(
+            value: value,
+            activeColor: style.checkedColor,
+            checkColor: style.checkColor,
+            side: unchecked == null
+                ? null
+                : BorderSide(color: unchecked, width: 2),
+            shape: radius == null
+                ? null
+                : RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(radius),
+                  ),
+            onChanged: (next) {
+              if (interactive && changed != null && next != null) {
+                changed(next);
+              }
+            },
+          ),
         ),
       ),
       child: child,

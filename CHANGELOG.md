@@ -1,5 +1,8 @@
 ## Unreleased
 
+* Fixed: task lists and radio items threw "No Material widget found" when
+  no `Material` sat above `GptMarkdown` (a `WidgetsApp` or Cupertino app,
+  or an overlay). The marker now brings a transparent one when needed (#154).
 * Package links point to useval.ai: homepage, documentation and README links.
 * Fixed: on Flutter 3.50, formulas and inline code in a right-to-left
   paragraph showed in swapped order. Flutter now orders them correctly
