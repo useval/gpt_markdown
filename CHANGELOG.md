@@ -6,6 +6,9 @@
   itself, and the package's workaround for older versions reordered them a
   second time. The workaround now checks where Flutter put them and only
   corrects what is wrong, so both old and new Flutter versions are right.
+* Installs on Flutter 3.44 again. `material_ui` 1.3.0 was retracted, so
+  `^1.3.0` resolved only to 1.4.0+, which needs Flutter 3.47. The constraint
+  is now `^1.2.0`.
 
 ## 1.4.1
 
